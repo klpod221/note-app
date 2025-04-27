@@ -1,27 +1,26 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-import { login } from '@/services/authService';
+import useNotify from "@/hooks/useNotify";
+import { login } from "@/services/authService";
 
-import { Form, Input, Button, Checkbox, Divider, message } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Checkbox, Divider } from "antd";
+import { LockOutlined, MailOutlined, LoginOutlined } from "@ant-design/icons";
 
 export default function Login() {
   const router = useRouter();
-  const [messageApi, contextHolder] = message.useMessage();
-  const [loading, setLoading] = useState(false);
+  const notify = useNotify();
 
   const onFinish = async (values) => {
-    setLoading(true);
     try {
+      notify.loading("Logging in...");
       await login(values.email, values.password);
-      messageApi.success('Login successful!');
-      router.push('/');
+      notify.success("Login successful!");
+      router.push("/");
     } catch (error) {
-      messageApi.error(error.message || 'Login failed');
+      notify.error(error.message || "Login failed");
       console.error(error);
     } finally {
       setLoading(false);
@@ -30,7 +29,6 @@ export default function Login() {
 
   return (
     <>
-      {contextHolder}
       <h1 className="text-2xl font-bold text-center mb-6">
         Login to Your Account
       </h1>
@@ -48,7 +46,7 @@ export default function Login() {
             { type: "email", message: "Please enter a valid email!" },
           ]}
         >
-          <Input prefix={<UserOutlined />} placeholder="Email" />
+          <Input prefix={<MailOutlined />} placeholder="Email" />
         </Form.Item>
 
         <Form.Item
@@ -70,11 +68,11 @@ export default function Login() {
         <Form.Item>
           <Button
             type="primary"
+            icon={<LoginOutlined />}
             htmlType="submit"
-            loading={loading}
             className="w-full"
           >
-            Log in
+            Login
           </Button>
         </Form.Item>
 

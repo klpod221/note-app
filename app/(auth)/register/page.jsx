@@ -1,36 +1,32 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+import useNotify from "@/hooks/useNotify";
 import { register } from "@/services/authService";
 
-import { Form, Input, Button, Divider, message } from "antd";
+import { Form, Input, Button, Divider } from "antd";
 import { UserOutlined, LockOutlined, MailOutlined } from "@ant-design/icons";
 
 export default function Register() {
   const router = useRouter();
-  const [messageApi, contextHolder] = message.useMessage();
-  const [loading, setLoading] = useState(false);
+  const notify = useNotify();
 
   const onFinish = async (values) => {
-    setLoading(true);
     try {
+      notify.loading("Registering...");
       const { username, email, password } = values;
       await register(username, email, password);
-      messageApi.success("Registration successful! Please login.");
+      notify.success("Registration successful! Please login.");
       router.push("/login");
     } catch (error) {
-      messageApi.error(error.message);
-    } finally {
-      setLoading(false);
+      notify.error(error.message);
     }
   };
 
   return (
     <>
-      {contextHolder}
       <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">
         Create an Account
       </h1>
@@ -89,7 +85,6 @@ export default function Register() {
           <Button
             type="primary"
             htmlType="submit"
-            loading={loading}
             className="w-full"
           >
             Register

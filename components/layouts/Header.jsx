@@ -1,6 +1,10 @@
 "use client";
 
 import React from "react";
+
+import useNotify from "@/hooks/useNotify";
+import { logout } from "@/services/authService";
+
 import { Layout, Button, Avatar, Dropdown } from "antd";
 import { 
   MenuFoldOutlined, 
@@ -9,9 +13,20 @@ import {
   LogoutOutlined,
   SettingOutlined
 } from "@ant-design/icons";
-import { signOut } from "next-auth/react";
 
 const Header = ({ user, open, toggleDrawer }) => {
+  const notify = useNotify();
+
+  const handleLogout = async () => {
+    try {
+      notify.loading("Logging out...");
+      await logout();
+      notify.success("Logged out successfully");
+    } catch (error) {
+      notify.error("Logout failed");
+    }
+  }
+
   const userMenuItems = [
     {
       key: "profile",
@@ -30,7 +45,7 @@ const Header = ({ user, open, toggleDrawer }) => {
       key: "logout",
       icon: <LogoutOutlined />,
       label: "Sign out",
-      onClick: () => signOut(),
+      onClick: () => handleLogout(),
     },
   ];
 

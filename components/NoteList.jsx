@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Tree, Input, Spin, Dropdown, Menu, Empty, Button, Tooltip } from "antd";
+import { Tree, Input, Spin, Dropdown, Empty, Button, Tooltip } from "antd";
 import {
   FileTextOutlined,
   FolderOutlined,
@@ -9,12 +9,14 @@ import {
   EditOutlined,
   CopyOutlined,
   ReloadOutlined,
+  DeleteFilled,
+  UndoOutlined,
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 
 const { DirectoryTree } = Tree;
 
-const NoteList = ({
+export default function NoteList({
   notes = [],
   loading = false,
   onSelectNote = () => {},
@@ -25,11 +27,13 @@ const NoteList = ({
   onDuplicateNote = () => {},
   onMoveNote = () => {},
   onRefresh = () => {},
-}) => {
+  onRestoreNote = () => {},
+}) {
   const [expandedKeys, setExpandedKeys] = useState([]);
   const [searchValue, setSearchValue] = useState("");
   const [autoExpandParent, setAutoExpandParent] = useState(true);
   const [treeData, setTreeData] = useState([]);
+  const [trashItems, setTrashItems] = useState([]);
   const [rightClickedNode, setRightClickedNode] = useState(null);
   const [contextMenuPosition, setContextMenuPosition] = useState({
     x: 0,
@@ -40,8 +44,12 @@ const NoteList = ({
   // Transform flat notes array into tree structure
   useEffect(() => {
     if (notes.length) {
-      const treeData = buildTreeData(notes);
+      const { treeData, trashItems } = buildTreeData(notes);
       setTreeData(treeData);
+      setTrashItems(trashItems);
+    } else {
+      setTreeData([]);
+      setTrashItems([]);
     }
   }, [notes]);
 
@@ -57,41 +65,58 @@ const NoteList = ({
 
     // Build tree structure
     const rootNotes = [];
+    const deletedNotes = [];
 
     notes.forEach((note) => {
-      if (!note.deletedAt) {
-        // Skip deleted notes
+      if (note.deletedAt) {
+        // Add to trash array
+        deletedNotes.push(notesMap[note._id]);
+      } else {
+        // Add to regular tree
         if (note.parent === null) {
           rootNotes.push(notesMap[note._id]);
-        } else if (notesMap[note.parent]) {
+        } else if (notesMap[note.parent] && !notesMap[note.parent].deletedAt) {
           notesMap[note.parent].children.push(notesMap[note._id]);
         }
       }
     });
 
     // Convert to Tree data structure
-    return rootNotes.map((note) => convertToTreeNode(note));
+    const treeData = rootNotes.map((note) => convertToTreeNode(note));
+
+    // Create trash items
+    const trashItems = deletedNotes.map((note) =>
+      convertToTreeNode(note, true)
+    );
+
+    return { treeData, trashItems };
   };
 
-  const convertToTreeNode = (note) => {
+  const convertToTreeNode = (note, isTrashItem = false) => {
     return {
       title: note.title,
       key: note._id,
       isLeaf: !note.isFolder,
       isFolder: note.isFolder,
-      icon: ({ expanded }) =>
-        note.isFolder ? (
+      isTrashItem: isTrashItem,
+      icon: ({ expanded }) => {
+        if (isTrashItem) {
+          return note.isFolder ? <FolderOpenOutlined /> : <FileTextOutlined />;
+        }
+
+        return note.isFolder ? (
           expanded ? (
-            <FolderOpenOutlined className="text-yellow-500" />
+            <FolderOpenOutlined />
           ) : (
-            <FolderOutlined className="text-yellow-500" />
+            <FolderOutlined />
           )
         ) : (
-          <FileTextOutlined className="text-blue-500" />
-        ),
+          <FileTextOutlined />
+        );
+      },
       children:
         note.children && note.children.length > 0
-          ? note.children.map((child) => convertToTreeNode(child))
+          ? note.children.map((child) => convertToTreeNode(child, isTrashItem))
           : undefined,
     };
   };
@@ -217,6 +242,9 @@ const NoteList = ({
       case "delete":
         onDeleteNote && onDeleteNote(rightClickedNode.key);
         break;
+      case "restore":
+        onRestoreNote && onRestoreNote(rightClickedNode.key);
+        break;
       case "newNote":
         onCreateNote && onCreateNote(rightClickedNode.key, false);
         break;
@@ -248,6 +276,11 @@ const NoteList = ({
   }, [handleClickOutside]);
 
   const handleDrop = (info) => {
+    // Don't allow dropping onto trash items
+    if (info.node.isTrashItem) {
+      return;
+    }
+
     const dropKey = info.node.key;
     const dragKey = info.dragNode.key;
     const dropPos = info.node.pos.split("-");
@@ -300,39 +333,53 @@ const NoteList = ({
     return null;
   };
 
-  const nodeContextMenu = [
-    {
-      key: "rename",
-      icon: <EditOutlined />,
-      label: "Rename",
-    },
-    {
-      key: "delete",
-      icon: <DeleteOutlined />,
-      label: "Delete",
-      danger: true,
-    },
-    { type: "divider" },
-    ...(rightClickedNode?.isFolder
-      ? [
-          {
-            key: "newNote",
-            icon: <FileTextOutlined />,
-            label: "New Note",
-          },
-          {
-            key: "newFolder",
-            icon: <FolderOutlined />,
-            label: "New Folder",
-          },
-        ]
-      : []),
-    {
-      key: "duplicate",
-      icon: <CopyOutlined />,
-      label: "Duplicate",
-    },
-  ];
+  const nodeContextMenu = rightClickedNode?.isTrashItem
+    ? [
+        {
+          key: "restore",
+          icon: <UndoOutlined />,
+          label: "Restore",
+        },
+        {
+          key: "delete",
+          icon: <DeleteOutlined />,
+          label: "Delete permanently",
+          danger: true,
+        },
+      ]
+    : [
+        {
+          key: "rename",
+          icon: <EditOutlined />,
+          label: "Rename",
+        },
+        {
+          key: "delete",
+          icon: <DeleteOutlined />,
+          label: "Delete",
+          danger: true,
+        },
+        { type: "divider" },
+        ...(rightClickedNode?.isFolder
+          ? [
+              {
+                key: "newNote",
+                icon: <FileTextOutlined />,
+                label: "New Note",
+              },
+              {
+                key: "newFolder",
+                icon: <FolderOutlined />,
+                label: "New Folder",
+              },
+            ]
+          : []),
+        {
+          key: "duplicate",
+          icon: <CopyOutlined />,
+          label: "Duplicate",
+        },
+      ];
 
   const treeAreaContextMenu = [
     {
@@ -348,6 +395,20 @@ const NoteList = ({
   ];
 
   const processedTreeData = processTreeData(treeData);
+
+  // Create a combined tree data with the trash folder at the bottom
+  const combinedTreeData = [...processedTreeData];
+
+  // Add trash folder if there are any deleted items
+  if (trashItems.length > 0) {
+    combinedTreeData.push({
+      title: "Trash",
+      key: "trash-folder",
+      isFolder: true,
+      icon: <DeleteFilled />,
+      children: trashItems,
+    });
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -385,7 +446,7 @@ const NoteList = ({
       <div className="p-3 mb-2 border-b border-gray-100">
         <Input
           placeholder="Search notes..."
-          prefix={<SearchOutlined className="text-gray-400" />}
+          prefix={<SearchOutlined />}
           onChange={handleSearch}
           className="rounded-md"
         />
@@ -401,14 +462,14 @@ const NoteList = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
-            className="h-full"
           >
-            {treeData.length ? (
+            {combinedTreeData.length ? (
               <Dropdown
                 menu={{
                   items: isTreeAreaContextMenu
                     ? treeAreaContextMenu
                     : nodeContextMenu,
+                  onClick: handleMenuClick,
                 }}
                 trigger={["contextMenu"]}
                 open={!!rightClickedNode || isTreeAreaContextMenu}
@@ -430,9 +491,12 @@ const NoteList = ({
                   onContextMenu={handleTreeAreaRightClick}
                 >
                   <DirectoryTree
-                    treeData={processedTreeData}
+                    treeData={combinedTreeData}
                     onSelect={(selectedKeys, info) => {
-                      onSelectNote(info.node);
+                      // Don't allow selecting the trash folder itself
+                      if (info.node.key !== "trash-folder") {
+                        onSelectNote(info.node);
+                      }
                     }}
                     expandedKeys={expandedKeys}
                     autoExpandParent={autoExpandParent}
@@ -441,9 +505,18 @@ const NoteList = ({
                     showIcon
                     blockNode
                     onRightClick={handleRightClick}
-                    draggable
+                    draggable={(node) =>
+                      !node.isTrashItem && node.key !== "trash-folder"
+                    }
                     onDrop={handleDrop}
                     allowDrop={({ dropNode, dropPosition }) => {
+                      // Don't allow dropping into trash items or the trash folder
+                      if (
+                        dropNode.isTrashItem ||
+                        dropNode.key === "trash-folder"
+                      ) {
+                        return false;
+                      }
                       // Only allow dropping into folders or at root level
                       return dropNode.isFolder || dropPosition !== 0;
                     }}
@@ -466,6 +539,4 @@ const NoteList = ({
       </div>
     </div>
   );
-};
-
-export default NoteList;
+}
