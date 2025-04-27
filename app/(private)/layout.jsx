@@ -1,17 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Layout } from "antd";
-import useWindowSize from "@/hook/useWindowSize";
+import React, { useState, useEffect, useMemo } from "react";
+
+import useCurrentUser from "@/hooks/useCurrentUser";
+import useWindowSize from "@/hooks/useWindowSize";
+
 import Header from "@/components/layouts/Header";
 import Sidebar from "@/components/layouts/Sidebar";
 
-const { Content } = Layout;
+import { Layout, Spin } from "antd";
 
-export default function Main({ children }) {
+export default function PrivateLayout({ children }) {
+  const { user, loading, authenticated } = useCurrentUser();
   const windowSize = useWindowSize();
-  const isMobile = windowSize.width < 768;
+  
+  // Calculate isMobile once when window size changes
+  const isMobile = useMemo(() => windowSize.width < 768, [windowSize.width]);
 
+  // Initialize sidebar state based on device type
   const [open, setOpen] = useState(!isMobile);
 
   // Update drawer state when screen size changes
@@ -23,20 +29,50 @@ export default function Main({ children }) {
     setOpen(!open);
   };
 
+  // Show loading state if user data is being fetched
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center">
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  // Handle unauthenticated state
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg mb-4">You need to be logged in to access this area</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Layout className="min-h-screen">
-      <Header isMobile={isMobile} open={open} toggleDrawer={toggleDrawer} />
+      <Header 
+        user={user}
+        isMobile={isMobile} 
+        open={open} 
+        toggleDrawer={toggleDrawer} 
+      />
       <Layout className="pt-[64px]">
-        <Sidebar isMobile={isMobile} open={open} toggleDrawer={toggleDrawer} />
+        <Sidebar 
+          user={user}
+          isMobile={isMobile} 
+          open={open} 
+          toggleDrawer={toggleDrawer} 
+        />
         <Layout
           style={{
-            marginLeft: isMobile ? 0 : open ? 200 : 0,
-            transition: "margin 0.2s",
+            marginLeft: 0,
+            transition: "all 0.2s",
           }}
         >
-          <Content className="p-4 m-0 min-h-[280px] overflow-auto">
+          <Layout.Content className="p-4 m-0 min-h-[280px] overflow-auto">
             {children}
-          </Content>
+          </Layout.Content>
         </Layout>
       </Layout>
     </Layout>

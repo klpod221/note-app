@@ -6,3 +6,23 @@ ul,
 menu {
   list-style: revert;
 }
+
+.custom-tree-without-drag-handle .ant-tree-draggable-icon {
+  display: none !important;
+}
+
+.ant-tree.custom-tree-without-drag-handle {
+  height: 100% !important;
+}
+
+.ant-tree-list {
+  height: 100%;
+}
+
+.ant-tree-list-holder {
+  height: 100%;
+}
+
+.ant-tree-list-holder-inner {
+  min-height: 100%;
+}

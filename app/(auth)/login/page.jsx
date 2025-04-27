@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import { login } from '@/services/authService';
@@ -9,6 +10,7 @@ import { Form, Input, Button, Checkbox, Divider, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 
 export default function Login() {
+  const router = useRouter();
   const [messageApi, contextHolder] = message.useMessage();
   const [loading, setLoading] = useState(false);
 
@@ -17,6 +19,7 @@ export default function Login() {
     try {
       await login(values.email, values.password);
       messageApi.success('Login successful!');
+      router.push('/');
     } catch (error) {
       messageApi.error(error.message || 'Login failed');
       console.error(error);

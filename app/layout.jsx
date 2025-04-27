@@ -1,6 +1,6 @@
 import "@/styles/globals.css";
 
-import { App } from "antd";
+import Providers from "@/components/Providers";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 
 export const metadata = {
@@ -9,7 +9,7 @@ export const metadata = {
   authors: [
     {
       name: "klpod221",
-      url: "klpod221.com",
+      url: "https://klpod221.com",
     },
   ],
 };
@@ -19,7 +19,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className="bg-gray-100">
         <AntdRegistry>
-          <App>{children}</App>
+          <Providers>{children}</Providers>
         </AntdRegistry>
       </body>
     </html>

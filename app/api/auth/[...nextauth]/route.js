@@ -13,7 +13,7 @@ const handler = NextAuth({
         await connectDB();
 
         const user = await User.findOne({ email: credentials.email });
-        
+
         if (!user) throw new Error("Email không tồn tại");
 
         const isValid = await bcrypt.compare(
@@ -24,9 +24,10 @@ const handler = NextAuth({
 
         return {
           id: user._id,
-          name: user.name,
+          username: user.username,
           email: user.email,
           role: user.role,
+          isActive: user.isActive,
         };
       },
     }),
@@ -34,11 +35,21 @@ const handler = NextAuth({
   session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.role = user.role;
+      if (user) {
+        token.id = user.id;
+        token.username = user.username;
+        token.role = user.role;
+        token.isActive = user.isActive;
+      }
       return token;
     },
     async session({ session, token }) {
-      if (token) session.user.role = token.role;
+      if (token) {
+        session.user.id = token.id;
+        session.user.username = token.username;
+        session.user.role = token.role;
+        session.user.isActive = token.isActive;
+      }
       return session;
     },
   },
