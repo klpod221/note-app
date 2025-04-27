@@ -1,0 +1,8 @@
+@import "tailwindcss";
+@import "github-markdown-css/github-markdown-light.css";
+
+ol,
+ul,
+menu {
+  list-style: revert;
+}
