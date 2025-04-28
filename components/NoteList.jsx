@@ -695,7 +695,7 @@ export default function NoteList({ onSelectNote = () => {} }) {
             label="Name"
             rules={[{ required: true, message: "Please enter a name" }]}
           >
-            <Input placeholder="Enter name" />
+            <Input placeholder="Enter name" autoFocus />
           </Form.Item>
         </Form>
       </Modal>

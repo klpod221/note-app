@@ -65,7 +65,7 @@ const Header = ({ user, open, toggleDrawer }) => {
       <div className="flex items-center">
         <Button
           type="text"
-          icon={open ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />}
+          icon={open ? <MenuFoldOutlined className="!text-lg mt-[27px]" /> : <MenuUnfoldOutlined className="!text-lg mt-[27px]" />}
           onClick={toggleDrawer}
           className="mr-3"
         />
