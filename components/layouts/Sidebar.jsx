@@ -9,7 +9,7 @@ import useNoteStore from "@/store/noteStore";
 import { Layout, Drawer } from "antd";
 const { Sider } = Layout;
 
-const Sidebar = ({ isMobile, open, toggleDrawer }) => {
+export default function Sidebar ({ isMobile, open, toggleDrawer }) {
   const router = useRouter();
   const { note } = useNoteStore();
 
@@ -70,5 +70,3 @@ const Sidebar = ({ isMobile, open, toggleDrawer }) => {
     </Sider>
   );
 };
-
-export default Sidebar;

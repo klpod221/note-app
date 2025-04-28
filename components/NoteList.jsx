@@ -26,7 +26,6 @@ import { motion } from "framer-motion";
 import useNoteStore from "@/store/noteStore";
 import {
   buildTreeData,
-  convertToTreeNode,
   findMatchingNodes,
   findNodeByPos,
   getParentKeys,

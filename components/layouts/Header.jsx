@@ -16,7 +16,7 @@ import {
 } from "@ant-design/icons";
 import Image from "next/image";
 
-const Header = ({ user, open, toggleDrawer }) => {
+export default function Header({ user, open, toggleDrawer }) {
   const notify = useNotify();
   const router = useRouter();
 
@@ -31,16 +31,31 @@ const Header = ({ user, open, toggleDrawer }) => {
     }
   };
 
+  const handleMenuClick = (key) => {
+    switch (key) {
+      case "profile":
+        router.push("/profile");
+        break;
+      case "settings":
+        router.push("/settings");
+        break;
+      default:
+        break;
+    }
+  };
+
   const userMenuItems = [
     {
       key: "profile",
       icon: <UserOutlined />,
       label: "Profile",
+      onClick: () => handleMenuClick("profile"),
     },
     {
       key: "settings",
       icon: <SettingOutlined />,
       label: "Settings",
+      onClick: () => handleMenuClick("settings"),
     },
     {
       type: "divider",
@@ -65,16 +80,17 @@ const Header = ({ user, open, toggleDrawer }) => {
       <div className="flex items-center">
         <Button
           type="text"
-          icon={open ? <MenuFoldOutlined className="!text-lg mt-[27px]" /> : <MenuUnfoldOutlined className="!text-lg mt-[27px]" />}
+          icon={
+            open ? (
+              <MenuFoldOutlined className="!text-lg mt-[27px]" />
+            ) : (
+              <MenuUnfoldOutlined className="!text-lg mt-[27px]" />
+            )
+          }
           onClick={toggleDrawer}
           className="mr-3"
         />
-        <Image
-          src="/images/logo.png"
-          alt="Logo"
-          width={20}
-          height={20}
-        />
+        <Image src="/images/logo.png" alt="Logo" width={20} height={20} />
         <span className="ml-2 text-lg font-semibold">Note-Taking App</span>
       </div>
 
@@ -90,6 +106,4 @@ const Header = ({ user, open, toggleDrawer }) => {
       </div>
     </Layout.Header>
   );
-};
-
-export default Header;
+}
