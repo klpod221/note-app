@@ -41,6 +41,7 @@ export default function NoteList({ onSelectNote = () => {} }) {
     trashNotes,
     loading,
     loadedFolders,
+    parentFoldersLoaded, // Add this flag from the store
     deleteNote,
     restoreNote,
     renameNote,
@@ -451,7 +452,7 @@ export default function NoteList({ onSelectNote = () => {} }) {
     fetchRootNotes();
   }, []);
 
-  // Track selected note to expand parents
+  // Track selected note to expand parents - modified to use parentFoldersLoaded
   useEffect(() => {
     if (note?.id && combinedTreeData.length > 0) {
       // Make sure trash folder is expanded if the note is in trash
@@ -477,8 +478,9 @@ export default function NoteList({ onSelectNote = () => {} }) {
 
         // Auto expand parent if needed
         setAutoExpandParent(true);
-      } else {
+      } else if (parentFoldersLoaded) {
         // For regular notes, find all parent folder IDs
+        // Only do this when parent folders are properly loaded
         const parentKeys = getParentKeys(combinedTreeData, note.id);
 
         if (parentKeys.length > 0) {
@@ -499,17 +501,18 @@ export default function NoteList({ onSelectNote = () => {} }) {
             return changed ? newKeys : prev;
           });
 
-          // Auto expand parent if needed but only once
+          // Auto expand parent if needed
           setAutoExpandParent(true);
         }
       }
     }
-    // Prevent too frequent re-renders by using proper dependencies
+    // Include parentFoldersLoaded in dependencies
   }, [
     note?.id,
     note?.deletedAt,
     JSON.stringify(combinedTreeData.map((item) => item.key)),
     JSON.stringify(trashItems.map((item) => item.key)),
+    parentFoldersLoaded, 
   ]);
 
   return (

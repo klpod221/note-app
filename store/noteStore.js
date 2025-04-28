@@ -20,12 +20,14 @@ const useNoteStore = create((set, get) => ({
   noteLoading: false,
   loadedFolders: new Set(),
   trashLoaded: false,
+  parentFoldersLoaded: false, // Add a flag to track parent folders loading status
 
   // Actions
   setNote: (note) => set({ note }),
   setNotes: (notes) => set({ notes }),
   setTrashNotes: (trashNotes) => set({ trashNotes }),
   setLoading: (loading) => set({ loading }),
+  setParentFoldersLoaded: (loaded) => set({ parentFoldersLoaded: loaded }),
 
   // Track loaded folders
   addLoadedFolder: (folderId) =>
@@ -40,7 +42,7 @@ const useNoteStore = create((set, get) => ({
 
   fetchNote: async (id) => {
     try {
-      set({ noteLoading: true });
+      set({ noteLoading: true, parentFoldersLoaded: false }); // Reset parentFoldersLoaded flag
       const { data } = await getNoteById(id);
 
       const note = {
@@ -60,6 +62,9 @@ const useNoteStore = create((set, get) => ({
       if (note.parentId) {
         await get().loadParentFoldersAndNotes(note);
       }
+      
+      // Mark parent folders as loaded after successful loading
+      set({ parentFoldersLoaded: true });
 
       return note;
     } catch (error) {
@@ -141,6 +146,11 @@ const useNoteStore = create((set, get) => ({
 
         // Wait for all folder contents to load concurrently
         await Promise.all(folderLoadPromises);
+        
+        // Make sure all parent folders are marked as loaded
+        parentChain.forEach(folderId => {
+          get().addLoadedFolder(folderId);
+        });
       }
 
       return true;
@@ -161,6 +171,9 @@ const useNoteStore = create((set, get) => ({
     try {
       const notes = await fetchRootApi();
       set({ notes });
+
+      // Also fetch trash items when refreshing
+      await get().fetchTrashItems();
 
       const currentNote = get().note;
       if (currentNote && currentNote.parentId) {
