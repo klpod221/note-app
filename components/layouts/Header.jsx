@@ -70,7 +70,7 @@ const Header = ({ user, open, toggleDrawer }) => {
           className="mr-3"
         />
         <Image
-          src="/logo.png"
+          src="/images/logo.png"
           alt="Logo"
           width={20}
           height={20}

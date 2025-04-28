@@ -1,16 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 
-import NoteContainer from "@/components/NoteContainer";
+import NoteList from "@/components/NoteList";
+import useNoteStore from "@/store/noteStore";
 
 import { Layout, Drawer } from "antd";
 const { Sider } = Layout;
 
 const Sidebar = ({ isMobile, open, toggleDrawer }) => {
+  const { activeNoteId, setActiveNoteId } = useNoteStore();
+
+  const handleSelectNote = (note) => {
+    console.log("Selected note:", note);
+    setActiveNoteId(note.key);
+  };
+
   const sidebarContent = (
     <div className="h-full flex flex-col">
-      <NoteContainer />
+      <NoteList activeNoteId={activeNoteId} onSelectNote={handleSelectNote} />
     </div>
   );
 
@@ -26,9 +34,9 @@ const Sidebar = ({ isMobile, open, toggleDrawer }) => {
         styles={{
           body: {
             padding: 0,
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
           },
         }}
       >

@@ -24,25 +24,32 @@ import {
   UndoOutlined,
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
+import useNoteStore from "@/store/noteStore";
+import { buildTreeData, convertToTreeNode, findMatchingNodes, findNodeByPos } from "@/utils/treeUtils";
 
 const { DirectoryTree } = Tree;
 
 export default function NoteList({
-  notes = [],
-  trashNotes = [], // Add separate prop for trash notes
-  loading = false,
   activeNoteId = null,
-  onCreateNote = () => {},
-  onRenameNote = () => {},
   onSelectNote = () => {},
-  onDeleteNote = () => {},
-  onRestoreNote = () => {},
-  onDuplicateNote = () => {},
-  onMoveNote = () => {},
-  onRefresh = () => {},
-  onLoadFolderChildren = () => {},
-  onLoadTrash = () => {}, // Add function to load trash items
 }) {
+  // Get state and actions from the store
+  const { 
+    notes, 
+    trashNotes, 
+    loading, 
+    loadedFolders,
+    trashLoaded,
+    deleteNote, 
+    restoreNote, 
+    renameNote, 
+    createNote, 
+    moveNote,
+    fetchRootNotes,
+    fetchFolderChildren,
+    fetchTrashItems
+  } = useNoteStore();
+
   const [expandedKeys, setExpandedKeys] = useState([]);
   const [searchValue, setSearchValue] = useState("");
   const [autoExpandParent, setAutoExpandParent] = useState(true);
@@ -54,7 +61,7 @@ export default function NoteList({
     y: 0,
   });
   const [isTreeAreaContextMenu, setIsTreeAreaContextMenu] = useState(false);
-  const [loadedKeys, setLoadedKeys] = useState([]); // Track which folders have been loaded
+  const [loadedKeys, setLoadedKeys] = useState([]);
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -65,18 +72,20 @@ export default function NoteList({
   // Transform flat notes array into tree structure
   useEffect(() => {
     if (notes.length) {
-      const treeData = buildTreeData(notes, false);
-      setTreeData(treeData);
+      // Convert loadedFolders Set to regular Set for treeUtils
+      const loadedFoldersSet = new Set([...loadedFolders].map(id => id));
+      const processedTreeData = buildTreeData(notes, false, loadedFoldersSet);
+      setTreeData(processedTreeData);
     } else {
       setTreeData([]);
     }
-  }, [notes, loadedKeys]);
+  }, [notes, loadedFolders]);
 
   // Handle trash notes separately
   useEffect(() => {
     if (trashNotes.length) {
-      const trashItems = buildTreeData(trashNotes, true);
-      setTrashItems(trashItems);
+      const processedTrashItems = trashNotes.map(note => convertToTreeNode(note, true));
+      setTrashItems(processedTrashItems);
     } else {
       setTrashItems([]);
     }
@@ -86,21 +95,21 @@ export default function NoteList({
     setModalType(type);
     setActiveItem(item);
     modalForm.setFieldsValue({
-      title: item.title || "",
+      name: item.name || "",
     });
     setModalOpen(true);
   };
 
   const handleFormSubmit = (values) => {
     if (modalType === "create") {
-      onCreateNote({
+      createNote({
         ...activeItem,
-        title: values.title,
+        name: values.name,
       });
     } else if (modalType === "rename") {
-      onRenameNote({
+      renameNote({
         id: activeItem.id,
-        title: values.title,
+        name: values.name,
       });
     }
     setModalOpen(false);
@@ -108,75 +117,10 @@ export default function NoteList({
     modalForm.resetFields();
   };
 
-  // Modified buildTreeData to handle either normal notes or trash notes
-  const buildTreeData = (notes, isTrash) => {
-    // Create a map of all notes by their ID
-    const notesMap = {};
-    notes.forEach((note) => {
-      notesMap[note._id] = {
-        ...note,
-        children: [],
-      };
-    });
-
-    // Build tree structure - for initial load, only include root items and track which ones have children
-    const rootNotes = [];
-
-    notes.forEach((note) => {
-      if (note.parentId === null) {
-        // Only add root level items initially
-        rootNotes.push(notesMap[note._id]);
-      } else if (
-        notesMap[note.parentId] &&
-        loadedKeys.includes(note.parentId)
-      ) {
-        // Only add children for folders that have been explicitly loaded
-        notesMap[note.parentId].children.push(notesMap[note._id]);
-      }
-    });
-
-    // Convert to Tree data structure
-    return rootNotes.map((note) => convertToTreeNode(note, isTrash));
-  };
-
-  const convertToTreeNode = (note, isTrashItem = false) => {
-    const hasChildren = note.isFolder;
-
-    return {
-      title: note.title,
-      key: note._id,
-      isLeaf: !note.isFolder,
-      isFolder: note.isFolder,
-      isTrashItem: isTrashItem,
-      icon: ({ expanded }) => {
-        if (isTrashItem) {
-          return note.isFolder ? <FolderOpenOutlined /> : <FileTextOutlined />;
-        }
-
-        return note.isFolder ? (
-          expanded ? (
-            <FolderOpenOutlined />
-          ) : (
-            <FolderOutlined />
-          )
-        ) : (
-          <FileTextOutlined />
-        );
-      },
-      // Only include actual children if they've been loaded
-      children:
-        note.children && note.children.length > 0
-          ? note.children.map((child) => convertToTreeNode(child, isTrashItem))
-          : undefined,
-      // Mark folders as having children so they show the expand icon
-      isLeaf: !note.isFolder,
-    };
-  };
-
   // Function to load trash items when trash folder is expanded
   const handleTrashFolderExpand = async () => {
     try {
-      await onLoadTrash();
+      await fetchTrashItems();
       return Promise.resolve();
     } catch (error) {
       console.error("Error loading trash items:", error);
@@ -200,7 +144,7 @@ export default function NoteList({
 
     // Load children for this folder
     try {
-      await onLoadFolderChildren(key);
+      await fetchFolderChildren(key);
 
       // Mark this folder as loaded
       setLoadedKeys((prevKeys) => [...prevKeys, key]);
@@ -224,41 +168,21 @@ export default function NoteList({
 
     if (value) {
       // Find all matching nodes and their parents
-      const expandedKeys = findExpandedKeys(treeData, value);
+      const expandedKeys = findMatchingNodes(treeData, value);
       setExpandedKeys(expandedKeys);
       setAutoExpandParent(true);
     }
   };
 
-  const findExpandedKeys = (data, searchValue) => {
-    const keys = [];
+  const getHighlightedTitle = (name) => {
+    if (!searchValue) return name;
 
-    const loop = (data, searchValue) => {
-      return data.filter((item) => {
-        if (item.title.toLowerCase().indexOf(searchValue.toLowerCase()) > -1) {
-          keys.push(item.key);
-          return true;
-        }
-        if (item.children) {
-          return loop(item.children, searchValue).length > 0;
-        }
-        return false;
-      });
-    };
+    const index = name.toLowerCase().indexOf(searchValue.toLowerCase());
+    if (index === -1) return name;
 
-    loop(data, searchValue);
-    return keys;
-  };
-
-  const getHighlightedTitle = (title) => {
-    if (!searchValue) return title;
-
-    const index = title.toLowerCase().indexOf(searchValue.toLowerCase());
-    if (index === -1) return title;
-
-    const beforeStr = title.substring(0, index);
-    const highlightedStr = title.substring(index, index + searchValue.length);
-    const afterStr = title.substring(index + searchValue.length);
+    const beforeStr = name.substring(0, index);
+    const highlightedStr = name.substring(index, index + searchValue.length);
+    const afterStr = name.substring(index + searchValue.length);
 
     return (
       <span>
@@ -312,18 +236,19 @@ export default function NoteList({
           handleModalOpen("create", {
             isFolder: false,
             parentId: null,
-            title: "",
+            name: "",
           });
           break;
         case "newRootFolder":
           handleModalOpen("create", {
             isFolder: true,
             parentId: null,
-            title: "",
+            name: "",
           });
           break;
         case "refresh":
-          onRefresh && onRefresh();
+          fetchRootNotes();
+          setLoadedKeys([]);
           break;
         default:
           break;
@@ -339,34 +264,34 @@ export default function NoteList({
       case "rename":
         handleModalOpen("rename", {
           id: rightClickedNode.key,
-          title: rightClickedNode.title,
+          name: rightClickedNode.title,
         });
         break;
       case "delete":
-        onDeleteNote && onDeleteNote(rightClickedNode.key);
+        deleteNote(rightClickedNode.key);
         break;
       case "restore":
-        onRestoreNote && onRestoreNote(rightClickedNode.key);
+        restoreNote(rightClickedNode.key);
         break;
       case "newNote":
         handleModalOpen("create", {
           isFolder: false,
           parentId: rightClickedNode.key,
-          title: "",
+          name: "",
         });
         break;
       case "newFolder":
         handleModalOpen("create", {
           isFolder: true,
           parentId: rightClickedNode.key,
-          title: "",
+          name: "",
         });
         break;
       case "duplicate":
         handleModalOpen("create", {
           isFolder: rightClickedNode.isFolder,
           parentId: rightClickedNode.parentId,
-          title: `${rightClickedNode.title} (Copy)`,
+          name: `${rightClickedNode.title} (Copy)`,
         });
         break;
       default:
@@ -407,7 +332,7 @@ export default function NoteList({
 
     // If dropping on a folder, make the dragged item a child of that folder
     if (isDroppingOnNode && isDroppingOnFolder) {
-      onMoveNote(dragKey, dropKey);
+      moveNote(dragKey, dropKey);
     }
     // If dropping between items, move the item to the same level
     else {
@@ -423,29 +348,8 @@ export default function NoteList({
         }
       }
 
-      onMoveNote(dragKey, parentKey);
+      moveNote(dragKey, parentKey);
     }
-  };
-
-  const findNodeByPos = (treeData, pos, currentPos = "0") => {
-    for (let i = 0; i < treeData.length; i++) {
-      const newPos = `${currentPos}-${i}`;
-      if (newPos === pos) {
-        return treeData[i];
-      }
-
-      if (treeData[i].children) {
-        const foundInChildren = findNodeByPos(
-          treeData[i].children,
-          pos,
-          newPos
-        );
-        if (foundInChildren) {
-          return foundInChildren;
-        }
-      }
-    }
-    return null;
   };
 
   const nodeContextMenu = rightClickedNode?.isTrashItem
@@ -507,6 +411,11 @@ export default function NoteList({
       icon: <FolderOutlined />,
       label: "New Folder",
     },
+    {
+      key: "refresh",
+      icon: <ReloadOutlined />,
+      label: "Refresh",
+    },
   ];
 
   const processedTreeData = processTreeData(treeData);
@@ -523,6 +432,11 @@ export default function NoteList({
     children: trashItems,
   });
 
+  // Fetch root notes on initial load
+  useEffect(() => {
+    fetchRootNotes();
+  }, []);
+
   return (
     <>
       <div className="h-full flex flex-col">
@@ -530,7 +444,7 @@ export default function NoteList({
           <h2 className="font-semibold text-lg">Note List</h2>
 
           <div className="flex items-center">
-            <Tooltip title="New Note">
+            <Tooltip name="New Note">
               <Button
                 size="small"
                 type="text"
@@ -538,13 +452,13 @@ export default function NoteList({
                   handleModalOpen("create", {
                     isFolder: false,
                     parentId: null,
-                    title: "",
+                    name: "",
                   })
                 }
                 icon={<FileTextOutlined />}
               />
             </Tooltip>
-            <Tooltip title="New Folder">
+            <Tooltip name="New Folder">
               <Button
                 size="small"
                 type="text"
@@ -552,18 +466,18 @@ export default function NoteList({
                   handleModalOpen("create", {
                     isFolder: true,
                     parentId: null,
-                    title: "",
+                    name: "",
                   })
                 }
                 icon={<FolderOutlined />}
               />
             </Tooltip>
-            <Tooltip title="Refresh">
+            <Tooltip name="Refresh">
               <Button
                 size="small"
                 type="text"
                 onClick={() => {
-                  onRefresh();
+                  fetchRootNotes();
                   setLoadedKeys([]); // Reset loaded keys on refresh
                 }}
                 icon={<ReloadOutlined />}
@@ -668,13 +582,15 @@ export default function NoteList({
         </div>
       </div>
       <Modal
-        title={() => {
-          if (modalType === "create") {
-            return activeItem.isFolder ? "Create Folder" : "Create Note";
-          } else {
-            return activeItem.isFolder ? "Rename Folder" : "Rename Note";
-          }
-        }}
+        title={
+          modalType === "create"
+            ? activeItem.isFolder
+              ? "Create Folder"
+              : "Create Note"
+            : activeItem.isFolder
+            ? "Rename Folder"
+            : "Rename Note"
+        }
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         footer={
@@ -695,15 +611,15 @@ export default function NoteList({
           layout="vertical"
           onFinish={handleFormSubmit}
           initialValues={{
-            title: activeItem.title,
+            name: activeItem.name,
           }}
         >
           <Form.Item
-            name="title"
-            label="Title"
-            rules={[{ required: true, message: "Please enter a title" }]}
+            name="name"
+            label="Name"
+            rules={[{ required: true, message: "Please enter a name" }]}
           >
-            <Input placeholder="Enter title" />
+            <Input placeholder="Enter name" />
           </Form.Item>
         </Form>
       </Modal>
