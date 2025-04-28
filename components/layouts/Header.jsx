@@ -1,31 +1,35 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 
 import useNotify from "@/hooks/useNotify";
 import { logout } from "@/services/authService";
 
 import { Layout, Button, Avatar, Dropdown } from "antd";
-import { 
-  MenuFoldOutlined, 
+import {
+  MenuFoldOutlined,
   MenuUnfoldOutlined,
   UserOutlined,
   LogoutOutlined,
-  SettingOutlined
+  SettingOutlined,
 } from "@ant-design/icons";
+import Image from "next/image";
 
 const Header = ({ user, open, toggleDrawer }) => {
   const notify = useNotify();
+  const router = useRouter();
 
   const handleLogout = async () => {
     try {
       notify.loading("Logging out...");
       await logout();
       notify.success("Logged out successfully");
+      router.push("/login");
     } catch (error) {
       notify.error("Logout failed");
     }
-  }
+  };
 
   const userMenuItems = [
     {
@@ -52,10 +56,10 @@ const Header = ({ user, open, toggleDrawer }) => {
   return (
     <Layout.Header
       className="fixed top-0 left-0 w-full z-10 flex items-center justify-between px-4 border-b border-gray-100"
-      style={{ 
+      style={{
         background: "#fff",
-        padding: '0 16px',
-        height: '64px'
+        padding: "0 16px",
+        height: "64px",
       }}
     >
       <div className="flex items-center">
@@ -65,23 +69,22 @@ const Header = ({ user, open, toggleDrawer }) => {
           onClick={toggleDrawer}
           className="mr-3"
         />
-        <h1 className="text-lg font-bold m-0">Note Taking App</h1>
+        <Image
+          src="/logo.png"
+          alt="Logo"
+          width={20}
+          height={20}
+        />
+        <span className="ml-2 text-lg font-semibold">Note-Taking App</span>
       </div>
 
       <div className="flex items-center">
-        <Dropdown
-          menu={{ items: userMenuItems }}
-          placement="bottomRight"
-          arrow
-        >
+        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
           <div className="flex items-center cursor-pointer">
             <span className="mr-2 hidden sm:inline">
               {user?.username || "User"}
             </span>
-            <Avatar 
-              icon={<UserOutlined />}
-              alt={user?.username || "User"} 
-            />
+            <Avatar icon={<UserOutlined />} alt={user?.username || "User"} />
           </div>
         </Dropdown>
       </div>

@@ -20,6 +20,6 @@ export async function middleware(req) {
 export const config = {
   // Ngoại trừ /, /login và /register thì tất cả các đường dẫn khác đều cần middleware
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|login|register|api/heath|api/register|api/auth).*)"
+    "/((?!_next/static|_next/image|images|favicon.ico|login|register|api/heath|api/register|api/auth).*)"
   ],
 };

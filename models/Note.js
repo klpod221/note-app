@@ -11,7 +11,7 @@ const noteSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    parent: {
+    parentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Note",
       default: null,

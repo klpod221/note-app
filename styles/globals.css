@@ -7,11 +7,11 @@ menu {
   list-style: revert;
 }
 
-.custom-tree-without-drag-handle .ant-tree-draggable-icon {
+.ant-tree-draggable-icon {
   display: none !important;
 }
 
-.ant-tree.custom-tree-without-drag-handle {
+.ant-tree {
   height: 100% !important;
 }
 
@@ -25,4 +25,8 @@ menu {
 
 .ant-tree-list-holder-inner {
   min-height: 100%;
+}
+
+.ant-tree .ant-tree-node-content-wrapper {
+  padding-inline: 0 !important;
 }

@@ -3,8 +3,8 @@ import "@/styles/globals.css";
 import Providers from "@/providers/Providers";
 
 export const metadata = {
-  title: "Note Taking App by klpod221",
-  description: "A simple note taking app with markdown editor",
+  title: "Note-Taking App by klpod221",
+  description: "A simple note-taking app with markdown editor",
   authors: [
     {
       name: "klpod221",

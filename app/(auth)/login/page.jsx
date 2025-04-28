@@ -29,9 +29,9 @@ export default function Login() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-center mb-6">
+      <h2 className="text-2xl font-bold text-center mb-6">
         Login to Your Account
-      </h1>
+      </h2>
       <Form
         name="login"
         initialValues={{ remember: true }}

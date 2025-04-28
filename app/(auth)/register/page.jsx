@@ -27,9 +27,9 @@ export default function Register() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-center text-gray-800 mb-6">
+      <h2 className="text-2xl font-bold text-center mb-6">
         Create an Account
-      </h1>
+      </h2>
       <Form name="register" onFinish={onFinish} layout="vertical" size="large">
         <Form.Item
           name="username"
