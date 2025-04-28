@@ -85,15 +85,21 @@ export default function NoteList({ onSelectNote = () => {} }) {
 
   // Handle trash notes separately
   useEffect(() => {
-    if (trashNotes.length) {
-      const processedTrashItems = trashNotes.map((note) =>
-        convertToTreeNode(note, true)
+    if (trashNotes.length > 0) {
+      // Convert loadedFolders Set to regular Set for treeUtils
+      const loadedFoldersSet = new Set([...loadedFolders].map((id) => id));
+
+      // Use buildTreeData for trash notes - passing true for isTrash
+      const processedTrashItems = buildTreeData(
+        trashNotes,
+        true,
+        loadedFoldersSet
       );
       setTrashItems(processedTrashItems);
     } else {
       setTrashItems([]);
     }
-  }, [trashNotes]);
+  }, [trashNotes, loadedFolders]);
 
   const handleModalOpen = (type, item) => {
     setModalType(type);
@@ -424,17 +430,22 @@ export default function NoteList({ onSelectNote = () => {} }) {
 
   const processedTreeData = processTreeData(treeData);
 
-  // Create a combined tree data with the trash folder at the bottom
+  // Create a combined tree data with the trash folder at the bottom only if there are trash items
   const combinedTreeData = [...processedTreeData];
 
-  // Add trash folder if there are any deleted items or to allow loading trash
-  combinedTreeData.push({
-    title: "Trash",
-    key: "trash-folder",
-    isFolder: true,
-    icon: <DeleteFilled />,
-    children: trashItems,
-  });
+  // Only add trash folder if there are items in it or if there's a deleted note selected
+  if (trashItems.length > 0 || note?.deletedAt) {
+    const trashFolder = {
+      title: "Trash",
+      key: "trash-folder",
+      isFolder: true,
+      icon: <DeleteFilled />,
+      children: trashItems,
+      isLeaf: false,
+    };
+
+    combinedTreeData.push(trashFolder);
+  }
 
   // Fetch root notes on initial load
   useEffect(() => {
@@ -443,24 +454,64 @@ export default function NoteList({ onSelectNote = () => {} }) {
 
   // Track selected note to expand parents
   useEffect(() => {
-    if (note?.id && treeData.length > 0) {
-      // Find all parent folder IDs for the current note
-      const parentKeys = getParentKeys(treeData, note.id);
-      
-      if (parentKeys.length > 0) {
-        // Add parent keys to expanded keys without losing current expanded state
-        setExpandedKeys(prev => {
+    if (note?.id && combinedTreeData.length > 0) {
+      // Make sure trash folder is expanded if the note is in trash
+      if (note.deletedAt) {
+        // For deleted notes, we need to explicitly add trash folder key
+        // and also check for parent keys within the trash items
+        setExpandedKeys((prev) => {
           const newKeys = [...prev];
-          parentKeys.forEach(key => {
+          if (!newKeys.includes("trash-folder")) {
+            newKeys.push("trash-folder");
+          }
+
+          // Also get parent keys within trash if there are any
+          const parentKeysInTrash = getParentKeys(trashItems, note.id);
+          parentKeysInTrash.forEach((key) => {
             if (!newKeys.includes(key)) {
               newKeys.push(key);
             }
           });
+
           return newKeys;
         });
+
+        // Auto expand parent if needed
+        setAutoExpandParent(true);
+      } else {
+        // For regular notes, find all parent folder IDs
+        const parentKeys = getParentKeys(combinedTreeData, note.id);
+
+        if (parentKeys.length > 0) {
+          // Add parent keys to expanded keys without losing current expanded state
+          setExpandedKeys((prev) => {
+            // Check if we're actually adding new keys to avoid infinite loops
+            const newKeys = [...prev];
+            let changed = false;
+
+            parentKeys.forEach((key) => {
+              if (!newKeys.includes(key)) {
+                newKeys.push(key);
+                changed = true;
+              }
+            });
+
+            // Only return new array if something changed
+            return changed ? newKeys : prev;
+          });
+
+          // Auto expand parent if needed but only once
+          setAutoExpandParent(true);
+        }
       }
     }
-  }, [note, treeData]);
+    // Prevent too frequent re-renders by using proper dependencies
+  }, [
+    note?.id,
+    note?.deletedAt,
+    JSON.stringify(combinedTreeData.map((item) => item.key)),
+    JSON.stringify(trashItems.map((item) => item.key)),
+  ]);
 
   return (
     <>

@@ -3,7 +3,7 @@
 import { useRef, forwardRef, useImperativeHandle } from "react";
 import MonacoEditor from "@monaco-editor/react";
 
-export default forwardRef(function MarkdownEditor({ value, onChange, onScroll }, ref) {
+export default forwardRef(function MarkdownEditor({ value, onChange, onScroll, readOnly = false }, ref) {
   // Refs
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
@@ -21,7 +21,7 @@ export default forwardRef(function MarkdownEditor({ value, onChange, onScroll },
 
   // Helper function to insert markdown syntax
   const insertMarkdownSyntax = (prefix, suffix, placeholder) => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || readOnly) return;
 
     const editor = editorRef.current;
     const selection = editor.getSelection();
@@ -73,7 +73,7 @@ export default forwardRef(function MarkdownEditor({ value, onChange, onScroll },
 
   // Function to format markdown content
   const formatMarkdown = () => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || readOnly) return;
 
     const editor = editorRef.current;
     const model = editor.getModel();
@@ -491,6 +491,8 @@ export default forwardRef(function MarkdownEditor({ value, onChange, onScroll },
 
     // Configure auto-continuation of lists
     editor.onKeyDown((e) => {
+      if (readOnly) return; // Don't process keyboard events in readonly mode
+      
       if (e.keyCode === monaco.KeyCode.Enter) {
         const model = editor.getModel();
         const position = editor.getPosition();
@@ -652,7 +654,7 @@ export default forwardRef(function MarkdownEditor({ value, onChange, onScroll },
       <MonacoEditor
         defaultLanguage="markdown"
         value={value}
-        onChange={onChange}
+        onChange={readOnly ? undefined : onChange}
         theme="vs-light"
         options={{
           wordWrap: "on",
@@ -670,6 +672,7 @@ export default forwardRef(function MarkdownEditor({ value, onChange, onScroll },
           acceptSuggestionOnEnter: "on",
           tabCompletion: "on",
           snippetSuggestions: "on",
+          readOnly: readOnly,
         }}
         onMount={handleEditorDidMount}
         beforeMount={(monaco) => {

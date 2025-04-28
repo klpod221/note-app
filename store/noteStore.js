@@ -50,6 +50,12 @@ const useNoteStore = create((set, get) => ({
 
       set({ note, noteLoading: false });
 
+      // Check if note is deleted/in trash
+      if (note.deletedAt) {
+        // Load trash items if this is a deleted note
+        await get().fetchTrashItems();
+      }
+
       // Load all parent folders and their notes
       if (note.parentId) {
         await get().loadParentFoldersAndNotes(note);
@@ -88,13 +94,29 @@ const useNoteStore = create((set, get) => ({
         const existingParent = state.notes.find(
           (n) => n._id === currentParentId
         );
+        
+        // Check if the parent is in trash
+        const deletedParent = state.trashNotes.find(
+          (n) => n._id === currentParentId
+        );
+
         if (existingParent) {
           currentParentId = existingParent.parentId;
+        } else if (deletedParent) {
+          // If parent is in trash, we can't access it in the normal hierarchy
+          console.warn("Parent note is in trash", currentParentId);
+          break;
         } else {
           // Need to fetch this parent
           try {
             const { data } = await getNoteById(currentParentId);
             if (!data) break;
+            
+            // If the fetched parent is deleted, break the chain
+            if (data.deletedAt) {
+              console.warn("Parent note is deleted", currentParentId);
+              break;
+            }
 
             currentParentId = data.parentId;
 
@@ -190,7 +212,21 @@ const useNoteStore = create((set, get) => ({
 
     try {
       const trashNotes = await fetchTrashApi();
-      set({ trashNotes, trashLoaded: true });
+      
+      // After loading trash notes, we want to add folders containing trashed items to loadedFolders,
+      // so that the tree structure can be properly displayed
+      const folderIds = new Set();
+      trashNotes.forEach(note => {
+        if (note.parentId) folderIds.add(note.parentId);
+      });
+      
+      // Update the store
+      set(state => ({
+        trashNotes,
+        trashLoaded: true,
+        loadedFolders: new Set([...state.loadedFolders, ...folderIds])
+      }));
+      
       return trashNotes;
     } catch (error) {
       console.error("Error fetching trash items:", error);
@@ -205,19 +241,36 @@ const useNoteStore = create((set, get) => ({
       const noteToTrash = get().notes.find((note) => note._id === noteId);
 
       if (noteToTrash) {
-        // Optimistically update UI first
+        // Find all children recursively (for UI update)
+        const findAllChildren = (parentId) => {
+          const children = get().notes.filter(note => note.parentId === parentId);
+          let allChildren = [...children];
+          
+          for (const child of children) {
+            const childDescendants = findAllChildren(child._id);
+            allChildren = [...allChildren, ...childDescendants];
+          }
+          
+          return allChildren;
+        };
+
+        const childNotes = findAllChildren(noteId);
+        const allNotesToTrash = [noteToTrash, ...childNotes];
+        const allNoteIds = allNotesToTrash.map(note => note._id);
+        
+        // Optimistically update UI first - remove from notes
         set((state) => ({
-          notes: state.notes.filter((note) => note._id !== noteId),
+          notes: state.notes.filter((note) => !allNoteIds.includes(note._id)),
         }));
 
         // Add to trash with deletedAt timestamp
-        const trashedNote = {
-          ...noteToTrash,
+        const trashedNotes = allNotesToTrash.map(note => ({
+          ...note,
           deletedAt: new Date().toISOString(),
-        };
+        }));
 
         set((state) => ({
-          trashNotes: [...state.trashNotes, trashedNote],
+          trashNotes: [...state.trashNotes, ...trashedNotes],
         }));
 
         // Call API
@@ -226,8 +279,8 @@ const useNoteStore = create((set, get) => ({
         if (!response.success) {
           // Rollback if API fails
           set((state) => ({
-            notes: [...state.notes, noteToTrash],
-            trashNotes: state.trashNotes.filter((note) => note._id !== noteId),
+            notes: [...state.notes, ...allNotesToTrash],
+            trashNotes: state.trashNotes.filter((note) => !allNoteIds.includes(note._id)),
           }));
 
           throw new Error(response.error || "Failed to delete note");
@@ -238,9 +291,26 @@ const useNoteStore = create((set, get) => ({
 
       const noteToDelete = get().trashNotes.find((note) => note._id === noteId);
       if (noteToDelete) {
+        // Find all children recursively (for UI update)
+        const findAllChildrenInTrash = (parentId) => {
+          const children = get().trashNotes.filter(note => note.parentId === parentId);
+          let allChildren = [...children];
+          
+          for (const child of children) {
+            const childDescendants = findAllChildrenInTrash(child._id);
+            allChildren = [...allChildren, ...childDescendants];
+          }
+          
+          return allChildren;
+        };
+
+        const childNotes = findAllChildrenInTrash(noteId);
+        const allNotesToDelete = [noteToDelete, ...childNotes];
+        const allNoteIds = allNotesToDelete.map(note => note._id);
+
         // Optimistically update UI first
         set((state) => ({
-          trashNotes: state.trashNotes.filter((note) => note._id !== noteId),
+          trashNotes: state.trashNotes.filter((note) => !allNoteIds.includes(note._id)),
         }));
 
         // Call API
@@ -249,7 +319,7 @@ const useNoteStore = create((set, get) => ({
         if (!response.success) {
           // Rollback if API fails
           set((state) => ({
-            trashNotes: [...state.trashNotes, noteToDelete],
+            trashNotes: [...state.trashNotes, ...allNotesToDelete],
           }));
 
           throw new Error(response.error || "Failed to delete note");
@@ -274,15 +344,48 @@ const useNoteStore = create((set, get) => ({
       );
 
       if (noteToRestore) {
-        // Optimistically update UI first
+        // Check if parent folder exists and is not in trash
+        if (noteToRestore.parentId) {
+          const parentExists = get().notes.some(note => note._id === noteToRestore.parentId);
+          
+          if (!parentExists) {
+            return { 
+              success: false, 
+              error: "Parent folder does not exist or is in trash. Restore parent folder first."
+            };
+          }
+        }
+
+        // Find all children recursively (for UI update)
+        const findAllChildrenInTrash = (parentId) => {
+          const children = get().trashNotes.filter(note => note.parentId === parentId);
+          let allChildren = [...children];
+          
+          for (const child of children) {
+            const childDescendants = findAllChildrenInTrash(child._id);
+            allChildren = [...allChildren, ...childDescendants];
+          }
+          
+          return allChildren;
+        };
+
+        const childNotes = findAllChildrenInTrash(noteId);
+        const allNotesToRestore = [noteToRestore, ...childNotes];
+        const allNoteIds = allNotesToRestore.map(note => note._id);
+
+        // Optimistically update UI first - remove from trash
         set((state) => ({
-          trashNotes: state.trashNotes.filter((note) => note._id !== noteId),
+          trashNotes: state.trashNotes.filter((note) => !allNoteIds.includes(note._id)),
         }));
 
         // Add back to notes without deletedAt
-        const { deletedAt, ...restoredNote } = noteToRestore;
+        const restoredNotes = allNotesToRestore.map(note => {
+          const { deletedAt, ...restoredNote } = note;
+          return restoredNote;
+        });
+
         set((state) => ({
-          notes: [...state.notes, restoredNote],
+          notes: [...state.notes, ...restoredNotes],
         }));
 
         // Call API
@@ -291,8 +394,8 @@ const useNoteStore = create((set, get) => ({
         if (!response.success) {
           // Rollback if API fails
           set((state) => ({
-            trashNotes: [...state.trashNotes, noteToRestore],
-            notes: state.notes.filter((note) => note._id !== noteId),
+            trashNotes: [...state.trashNotes, ...allNotesToRestore],
+            notes: state.notes.filter((note) => !allNoteIds.includes(note._id)),
           }));
 
           throw new Error(response.error || "Failed to restore note");

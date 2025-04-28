@@ -9,7 +9,7 @@ import { updateNote } from "@/services/noteService";
 import MarkdownEditor from "@/components/MarkdownEditor";
 import MarkdownPreview from "@/components/MarkdownPreview";
 
-import { Spin, Button, Tooltip, Divider, List, Tag, Popover } from "antd";
+import { Button, Tooltip, Divider, List, Tag, Popover } from "antd";
 import {
   SaveOutlined,
   EyeOutlined,
@@ -19,8 +19,8 @@ import {
   BulbOutlined,
 } from "@ant-design/icons";
 
-export default function NoteEditor({ id }) {
-  const { fetchNote, note, noteLoading } = useNoteStore();
+export default function NoteEditor() {
+  const { note } = useNoteStore();
   const [noteContent, setNoteContent] = useState("");
   const [viewMode, setViewMode] = useState("split"); // 'edit', 'preview', 'split'
   const [isSaving, setIsSaving] = useState(false);
@@ -29,13 +29,6 @@ export default function NoteEditor({ id }) {
   const editorRef = useRef(null);
   const previewRef = useRef(null);
 
-  // Load note data
-  useEffect(() => {
-    if (id) {
-      fetchNote(id);
-    }
-  }, [id, fetchNote]);
-
   // Update local content when note changes
   useEffect(() => {
     if (note && note.id) {
@@ -43,7 +36,16 @@ export default function NoteEditor({ id }) {
     }
   }, [note]);
 
+  // Check if note is deleted (read-only)
+  const isNoteDeleted =
+    note && note.deletedAt !== undefined && note.deletedAt !== null;
+
   const saveNote = async (content) => {
+    // Don't allow saving for deleted notes
+    if (isNoteDeleted) {
+      return;
+    }
+
     try {
       setIsSaving(true);
       const response = await updateNote(note.id, { content });
@@ -69,6 +71,11 @@ export default function NoteEditor({ id }) {
 
   // Handle content changes
   const handleContentChange = (content) => {
+    // Don't update content if note is deleted
+    if (isNoteDeleted) {
+      return;
+    }
+
     setNoteContent(content);
     debouncedSave(content);
   };
@@ -134,23 +141,8 @@ export default function NoteEditor({ id }) {
     );
   };
 
-  // Loading state
-  if (noteLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  // Note not found
-  if (!note.id) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p>Note not found</p>
-      </div>
-    );
-  }
+  // Show deleted note warning
+  const isReadOnly = isNoteDeleted;
 
   const shortcutContent = (
     <div className="p-2">
@@ -224,6 +216,7 @@ export default function NoteEditor({ id }) {
               type={viewMode === "edit" ? "primary" : "default"}
               icon={<EditOutlined />}
               onClick={() => setViewMode("edit")}
+              disabled={isReadOnly}
             />
           </Tooltip>
           <Tooltip title="Preview mode">
@@ -237,6 +230,7 @@ export default function NoteEditor({ id }) {
             <Button
               type={viewMode === "split" ? "primary" : "default"}
               onClick={() => setViewMode("split")}
+              disabled={isReadOnly && viewMode !== "split"}
             >
               <div className="flex items-center">
                 <EditOutlined style={{ fontSize: "0.75rem" }} />
@@ -249,16 +243,25 @@ export default function NoteEditor({ id }) {
           <Divider type="vertical" />
 
           {/* Save button */}
-          <Tooltip title="Manual save">
+          <Tooltip
+            title={isReadOnly ? "Cannot save deleted notes" : "Manual save"}
+          >
             <Button
               onClick={() => saveNote(noteContent)}
               icon={<SaveOutlined />}
               className="flex"
               loading={isSaving}
+              disabled={isReadOnly}
             >
               Save
             </Button>
           </Tooltip>
+
+          {isReadOnly && (
+            <Tag color="error" className="ml-2">
+              Deleted Note (Read-only)
+            </Tag>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -308,6 +311,7 @@ export default function NoteEditor({ id }) {
             value={noteContent}
             onChange={handleContentChange}
             onScroll={handleEditorScroll}
+            readOnly={isReadOnly}
           />
         </div>
 

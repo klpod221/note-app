@@ -100,11 +100,40 @@ export async function DELETE(request, props) {
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
 
+    // Helper function to get all child notes (recursive)
+    async function getAllChildNotes(parentId) {
+      const children = await Note.find({ 
+        parentId, 
+        owner: session.user.id 
+      });
+      
+      let allChildren = [...children];
+      
+      // Recursively get children of folders
+      for (const child of children) {
+        const childDescendants = await getAllChildNotes(child._id);
+        allChildren = [...allChildren, ...childDescendants];
+      }
+      
+      return allChildren;
+    }
+
+    // Get all children of this note/folder
+    const children = await getAllChildNotes(id);
+
     // Delete the note
     if (note.deletedAt) {
+      // Permanently delete the note and all its children
       await Note.deleteOne({ _id: id });
+      
+      // Delete all children permanently
+      if (children.length > 0) {
+        const childIds = children.map(child => child._id);
+        await Note.deleteMany({ _id: { $in: childIds } });
+      }
+      
       return NextResponse.json(
-        { message: "Note deleted permanently" },
+        { message: "Note and all children deleted permanently" },
         { status: 200 }
       );
     }
@@ -112,9 +141,17 @@ export async function DELETE(request, props) {
     // Move the note to trash
     note.deletedAt = new Date();
     await note.save();
+    
+    // Move all children to trash
+    if (children.length > 0) {
+      await Note.updateMany(
+        { _id: { $in: children.map(child => child._id) } },
+        { deletedAt: new Date() }
+      );
+    }
 
     return NextResponse.json(
-      { message: "Note moved to trash" },
+      { message: "Note and all children moved to trash" },
       { status: 200 }
     );
   } catch (error) {

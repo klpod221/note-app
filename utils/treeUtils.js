@@ -18,9 +18,28 @@ export const convertToTreeNode = (note, isTrashItem = false) => {
     isTrashItem: isTrashItem,
     parentId: note.parentId,
     children: note.children && note.children.length > 0
-      ? note.children.map(child => convertToTreeNode(child, isTrashItem))
+      ? sortTreeNodes(note.children.map(child => convertToTreeNode(child, isTrashItem)))
       : undefined,
   };
+};
+
+/**
+ * Sort tree nodes to show folders first, then files, both in alphabetical order
+ * 
+ * @param {Array} nodes - Array of tree nodes to sort
+ * @returns {Array} - Sorted array with folders first
+ */
+export const sortTreeNodes = (nodes) => {
+  if (!nodes || nodes.length === 0) return [];
+  
+  return [...nodes].sort((a, b) => {
+    // First priority: folders before files
+    if (a.isFolder && !b.isFolder) return -1;
+    if (!a.isFolder && b.isFolder) return 1;
+    
+    // Second priority: alphabetical order by title
+    return a.title.localeCompare(b.title);
+  });
 };
 
 /**
@@ -44,18 +63,32 @@ export const buildTreeData = (notes, isTrash = false, loadedFolderIds = new Set(
   // Build tree structure
   const rootNotes = [];
 
+  // Process each note to build the tree
   notes.forEach(note => {
-    if (note.parentId === null) {
-      // Add root level items
+    if (!note.parentId) {
+      // Root level items
       rootNotes.push(notesMap[note._id]);
-    } else if (notesMap[note.parentId] && loadedFolderIds.has(note.parentId)) {
-      // Only add children for folders that have been explicitly loaded
-      notesMap[note.parentId].children.push(notesMap[note._id]);
+    } else {
+      // For trash items, we want to show them in their original hierarchy if possible
+      if (isTrash) {
+        // Check if parent exists in the current set of notes
+        if (notesMap[note.parentId]) {
+          notesMap[note.parentId].children.push(notesMap[note._id]);
+        } else {
+          // If parent doesn't exist in trash, show at root level
+          rootNotes.push(notesMap[note._id]);
+        }
+      } else {
+        // For regular notes, only add children to parents that are loaded
+        if (notesMap[note.parentId] && loadedFolderIds.has(note.parentId)) {
+          notesMap[note.parentId].children.push(notesMap[note._id]);
+        }
+      }
     }
   });
 
-  // Convert to Tree data structure
-  return rootNotes.map(note => convertToTreeNode(note, isTrash));
+  // Convert to Tree data structure and sort nodes
+  return sortTreeNodes(rootNotes.map(note => convertToTreeNode(note, isTrash)));
 };
 
 /**
@@ -124,7 +157,12 @@ export const getParentKeys = (treeData, nodeKey) => {
   const parentKeys = [];
   
   const findParents = (nodes, targetKey, path = []) => {
+    if (!nodes || !Array.isArray(nodes)) return null;
+    
     for (const node of nodes) {
+      // Skip undefined or null nodes
+      if (!node) continue;
+      
       // Current path including this node
       const currentPath = [...path, node.key];
       
@@ -146,6 +184,6 @@ export const getParentKeys = (treeData, nodeKey) => {
     return null;
   };
   
-  const parents = findParents(treeData, nodeKey);
-  return parents || [];
+  // Search in the provided tree
+  return findParents(treeData, nodeKey) || [];
 };
