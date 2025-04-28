@@ -5,7 +5,9 @@ import { connectDB } from "@/lib/mongoose";
 import Note from "@/models/Note";
 
 // PATCH handler - move a note to a new parent folder
-export async function PATCH(request, { params }) {
+export async function PATCH(request, props) {
+  const params = await props.params;
+  
   const session = await getServerSession(auth);
   if (!session) {
     return NextResponse.json(

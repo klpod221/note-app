@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 
 import NoteList from "@/components/NoteList";
 import useNoteStore from "@/store/noteStore";
@@ -9,16 +10,21 @@ import { Layout, Drawer } from "antd";
 const { Sider } = Layout;
 
 const Sidebar = ({ isMobile, open, toggleDrawer }) => {
-  const { activeNoteId, setActiveNoteId } = useNoteStore();
+  const router = useRouter();
+  const { note } = useNoteStore();
 
-  const handleSelectNote = (note) => {
-    console.log("Selected note:", note);
-    setActiveNoteId(note.key);
+  const handleSelectNote = (selectedNote) => {
+    if (selectedNote.key !== note.id && !selectedNote.isFolder) {
+      if (isMobile) {
+        toggleDrawer();
+      }
+      router.push(`/note/${selectedNote.key}`);
+    }
   };
 
   const sidebarContent = (
     <div className="h-full flex flex-col">
-      <NoteList activeNoteId={activeNoteId} onSelectNote={handleSelectNote} />
+      <NoteList onSelectNote={handleSelectNote} />
     </div>
   );
 

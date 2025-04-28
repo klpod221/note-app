@@ -113,3 +113,39 @@ export const findNodeByPos = (treeData, pos, currentPos = "0") => {
   }
   return null;
 };
+
+/**
+ * Find all parent folder keys for a node with the given key
+ * @param {Array} treeData - The tree data structure
+ * @param {string} nodeKey - The key of the node to find parents for
+ * @returns {Array} - Array of parent folder keys
+ */
+export const getParentKeys = (treeData, nodeKey) => {
+  const parentKeys = [];
+  
+  const findParents = (nodes, targetKey, path = []) => {
+    for (const node of nodes) {
+      // Current path including this node
+      const currentPath = [...path, node.key];
+      
+      // If this is the node we're looking for, return its parent path (excluding the node itself)
+      if (node.key === targetKey) {
+        return path;
+      }
+      
+      // If this node has children, search them
+      if (node.children && node.children.length > 0) {
+        const result = findParents(node.children, targetKey, currentPath);
+        if (result) {
+          return result;
+        }
+      }
+    }
+    
+    // Node not found in this branch
+    return null;
+  };
+  
+  const parents = findParents(treeData, nodeKey);
+  return parents || [];
+};

@@ -1,186 +1,118 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useRef, forwardRef, useImperativeHandle } from "react";
 import MonacoEditor from "@monaco-editor/react";
-import debounce from "lodash.debounce";
-import MarkdownPreview from "@/components/MarkdownPreview";
 
-import { Spin, Card, Popover, Tag, Button, List } from "antd";
-import {
-  QuestionCircleOutlined,
-  FormatPainterOutlined,
-  BulbOutlined,
-} from "@ant-design/icons";
-
-export default function MarkdownEditor() {
-  // State management
-  const [content, setContent] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [isEditorScrolling, setIsEditorScrolling] = useState(false);
-  const [isPreviewScrolling, setIsPreviewScrolling] = useState(false);
-
+export default forwardRef(function MarkdownEditor({ value, onChange, onScroll }, ref) {
   // Refs
   const editorRef = useRef(null);
-  const previewRef = useRef(null);
   const monacoRef = useRef(null);
+  const containerRef = useRef(null);
 
-  // Save content to backend (simulated)
-  const saveContent = async (newContent) => {
-    setSaving(true);
-    try {
-      // Here you would normally save to a database or API
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    } catch (error) {
-      console.error("Error saving content:", error);
-    } finally {
-      setSaving(false);
+  // Expose editor ref to parent component
+  useImperativeHandle(ref, () => ({
+    scrollTop: editorRef.current ? editorRef.current.getScrollTop() : 0,
+    scrollHeight: editorRef.current ? editorRef.current.getScrollHeight() : 0,
+    clientHeight: containerRef.current ? containerRef.current.clientHeight : 0,
+    setScrollTop: (value) => {
+      if (editorRef.current) editorRef.current.setScrollTop(value);
     }
-  };
+  }));
 
-  // Debounced save to prevent too many API calls
-  const debouncedSave = useCallback(
-    debounce((newContent) => {
-      saveContent(newContent);
-    }, 500),
-    []
-  );
-
-  // Handle editor change
-  const handleEditorChange = (value) => {
-    setContent(value || "");
-    debouncedSave(value || "");
-  };
-
-  // Checkbox toggle implementation
-  const handleCheckboxToggle = (index) => {
-    const lines = content.split("\n");
-    if (index >= 0 && index < lines.length) {
-      const line = lines[index];
-      // Toggle checkbox state in markdown
-      if (line.includes("[ ]")) {
-        lines[index] = line.replace("[ ]", "[x]");
-      } else if (line.includes("[x]")) {
-        lines[index] = line.replace("[x]", "[ ]");
-      }
-      const newContent = lines.join("\n");
-      setContent(newContent);
-      debouncedSave(newContent);
-    }
-  };
-
-  // Helper function to get editor properties safely
-  const getEditorScrollInfo = useCallback((editor) => {
-    if (!editor) return null;
-
-    if (editor.getScrollInfo) {
-      return editor.getScrollInfo();
-    }
-
-    // Monaco editor case
-    try {
-      const scrollTop = editor.getScrollTop();
-      const scrollHeight = editor.getContentHeight
-        ? editor.getContentHeight()
-        : editor.getScrollHeight();
-      const clientHeight = editor.getLayoutInfo
-        ? editor.getLayoutInfo().height
-        : editor.getClientHeight();
-
-      return {
-        top: scrollTop,
-        height: scrollHeight - clientHeight,
-      };
-    } catch (error) {
-      console.error("Error getting editor scroll info:", error);
-      return null;
-    }
-  }, []);
-
-  // Set up editor scroll sync
-  const handleEditorScroll = useCallback(() => {
-    if (isPreviewScrolling || !editorRef.current || !previewRef.current) return;
-
-    setIsEditorScrolling(true);
-
-    const editor = editorRef.current;
-    const preview = previewRef.current;
-    const editorInfo = getEditorScrollInfo(editor);
-
-    if (editorInfo) {
-      const scrollPercentage = editorInfo.top / Math.max(editorInfo.height, 1);
-      const previewScrollTop =
-        scrollPercentage *
-        Math.max(preview.scrollHeight - preview.clientHeight, 0);
-      preview.scrollTop = previewScrollTop;
-    }
-
-    setTimeout(() => setIsEditorScrolling(false), 100);
-  }, [isPreviewScrolling, getEditorScrollInfo]);
-
-  // Set up preview scroll sync
-  const handlePreviewScroll = useCallback(() => {
-    if (isEditorScrolling || !editorRef.current || !previewRef.current) return;
-
-    setIsPreviewScrolling(true);
-
-    const editor = editorRef.current;
-    const preview = previewRef.current;
-
-    const previewScrollHeight = Math.max(
-      preview.scrollHeight - preview.clientHeight,
-      1
-    );
-    const scrollPercentage = preview.scrollTop / previewScrollHeight;
-
-    if (editor.setScrollTop) {
-      const editorScrollHeight = editor.getScrollHeight
-        ? editor.getScrollHeight()
-        : editor.getContentHeight
-        ? editor.getContentHeight()
-        : 0;
-
-      const editorClientHeight = editor.getLayoutInfo
-        ? editor.getLayoutInfo().height
-        : editor.getDomNode().clientHeight;
-
-      const maxScroll = Math.max(editorScrollHeight - editorClientHeight, 0);
-
-      // Apply smoother scrolling with requestAnimationFrame
-      requestAnimationFrame(() => {
-        editor.setScrollTop(scrollPercentage * maxScroll);
-      });
-    }
-
-    // Give more time for the scrolling to complete before allowing reverse sync
-    setTimeout(() => setIsPreviewScrolling(false), 200);
-  }, [isEditorScrolling]);
-
-  // Hook up the editor scroll events
-  useEffect(() => {
+  // Helper function to insert markdown syntax
+  const insertMarkdownSyntax = (prefix, suffix, placeholder) => {
     if (!editorRef.current) return;
 
     const editor = editorRef.current;
+    const selection = editor.getSelection();
+    const model = editor.getModel();
+    const selectedText = model.getValueInRange(selection);
 
-    // Monaco Editor scroll handling
-    if (editor.onDidScrollChange) {
-      const disposable = editor.onDidScrollChange(() => {
-        handleEditorScroll();
-      });
+    let newText;
 
-      // Apply initial sync if needed
-      setTimeout(handleEditorScroll, 500);
+    if (selectedText) {
+      // If text is selected, wrap it with the markdown syntax
+      newText = prefix + selectedText + suffix;
+      editor.executeEdits("markdown-shortcut", [
+        { range: selection, text: newText },
+      ]);
 
-      return () => disposable.dispose();
+      // Position cursor after the insertion
+      const newSelectionEnd = {
+        lineNumber: selection.endLineNumber,
+        column: selection.endColumn + prefix.length + suffix.length,
+      };
+      editor.setPosition(newSelectionEnd);
+    } else {
+      // If no text is selected, insert the syntax with placeholder
+      newText = prefix + placeholder + suffix;
+
+      const cursorPos = editor.getPosition();
+      editor.executeEdits("markdown-shortcut", [
+        {
+          range: {
+            startLineNumber: cursorPos.lineNumber,
+            startColumn: cursorPos.column,
+            endLineNumber: cursorPos.lineNumber,
+            endColumn: cursorPos.column,
+          },
+          text: newText,
+        },
+      ]);
+
+      // Select the placeholder text
+      const newSelection = {
+        startLineNumber: cursorPos.lineNumber,
+        startColumn: cursorPos.column + prefix.length,
+        endLineNumber: cursorPos.lineNumber,
+        endColumn: cursorPos.column + prefix.length + placeholder.length,
+      };
+      editor.setSelection(newSelection);
     }
-  }, [handleEditorScroll, editorRef.current]);
+  };
 
-  // Ensure both components are properly synced after initial render
-  useEffect(() => {
-    // Apply initial sync when content changes
-    if (content && editorRef.current && previewRef.current) {
-      setTimeout(handleEditorScroll, 300);
+  // Function to format markdown content
+  const formatMarkdown = () => {
+    if (!editorRef.current) return;
+
+    const editor = editorRef.current;
+    const model = editor.getModel();
+    const value = model.getValue();
+
+    // Apply formatting rules
+    let formatted = value;
+
+    // Fix header spacing (# Header instead of #Header)
+    formatted = formatted.replace(/^(#+)([^\s#])/gm, "$1 $2");
+
+    // Fix list item spacing (- Item instead of -Item)
+    formatted = formatted.replace(/^(\s*[-*+])([^\s])/gm, "$1 $2");
+
+    // Fix numbered list spacing (1. Item instead of 1.Item)
+    formatted = formatted.replace(/^(\s*\d+\.)([^\s])/gm, "$1 $2");
+
+    // Normalize line endings (ensure consistent empty lines between blocks)
+    formatted = formatted.replace(/\n{3,}/g, "\n\n");
+
+    // Fix spacing after code block markers
+    formatted = formatted.replace(/^```(\w+)?([^\n])/gm, "```$1\n$2");
+
+    // Fix end of code blocks
+    formatted = formatted.replace(/([^\n])```$/gm, "$1\n```");
+
+    // Apply the formatted content if there are changes
+    if (formatted !== value) {
+      editor.executeEdits("format-markdown", [
+        {
+          range: model.getFullModelRange(),
+          text: formatted,
+        },
+      ]);
+
+      // Update content state
+      onChange(formatted);
     }
-  }, [content, handleEditorScroll]);
+  };
 
   // Configure Monaco's suggestion provider
   const configureSuggestionProvider = (monaco) => {
@@ -519,6 +451,13 @@ export default function MarkdownEditor() {
     // Configure Monaco's suggestion provider
     configureSuggestionProvider(monaco);
 
+    // Add editor scroll event listener
+    editor.onDidScrollChange((e) => {
+      if (onScroll) {
+        onScroll(e);
+      }
+    });
+
     // Add keyboard shortcuts
     editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyB, () => {
       insertMarkdownSyntax("**", "**", "bold text");
@@ -708,244 +647,35 @@ export default function MarkdownEditor() {
     );
   };
 
-  // Helper function to insert markdown syntax
-  const insertMarkdownSyntax = (prefix, suffix, placeholder) => {
-    if (!editorRef.current) return;
-
-    const editor = editorRef.current;
-    const selection = editor.getSelection();
-    const model = editor.getModel();
-    const selectedText = model.getValueInRange(selection);
-
-    let newText;
-    let newPosition;
-
-    if (selectedText) {
-      // If text is selected, wrap it with the markdown syntax
-      newText = prefix + selectedText + suffix;
-      editor.executeEdits("markdown-shortcut", [
-        { range: selection, text: newText },
-      ]);
-
-      // Position cursor after the insertion
-      const newSelectionEnd = {
-        lineNumber: selection.endLineNumber,
-        column: selection.endColumn + prefix.length + suffix.length,
-      };
-      editor.setPosition(newSelectionEnd);
-    } else {
-      // If no text is selected, insert the syntax with placeholder
-      newText = prefix + placeholder + suffix;
-
-      const cursorPos = editor.getPosition();
-      editor.executeEdits("markdown-shortcut", [
-        {
-          range: {
-            startLineNumber: cursorPos.lineNumber,
-            startColumn: cursorPos.column,
-            endLineNumber: cursorPos.lineNumber,
-            endColumn: cursorPos.column,
-          },
-          text: newText,
-        },
-      ]);
-
-      // Select the placeholder text
-      const newSelection = {
-        startLineNumber: cursorPos.lineNumber,
-        startColumn: cursorPos.column + prefix.length,
-        endLineNumber: cursorPos.lineNumber,
-        endColumn: cursorPos.column + prefix.length + placeholder.length,
-      };
-      editor.setSelection(newSelection);
-    }
-  };
-
-  // Function to format markdown content
-  const formatMarkdown = () => {
-    if (!editorRef.current) return;
-
-    const editor = editorRef.current;
-    const model = editor.getModel();
-    const value = model.getValue();
-
-    // Apply formatting rules
-    let formatted = value;
-
-    // Fix header spacing (# Header instead of #Header)
-    formatted = formatted.replace(/^(#+)([^\s#])/gm, "$1 $2");
-
-    // Fix list item spacing (- Item instead of -Item)
-    formatted = formatted.replace(/^(\s*[-*+])([^\s])/gm, "$1 $2");
-
-    // Fix numbered list spacing (1. Item instead of 1.Item)
-    formatted = formatted.replace(/^(\s*\d+\.)([^\s])/gm, "$1 $2");
-
-    // Normalize line endings (ensure consistent empty lines between blocks)
-    formatted = formatted.replace(/\n{3,}/g, "\n\n");
-
-    // Fix spacing after code block markers
-    formatted = formatted.replace(/^```(\w+)?([^\n])/gm, "```$1\n$2");
-
-    // Fix end of code blocks
-    formatted = formatted.replace(/([^\n])```$/gm, "$1\n```");
-
-    // Apply the formatted content if there are changes
-    if (formatted !== value) {
-      editor.executeEdits("format-markdown", [
-        {
-          range: model.getFullModelRange(),
-          text: formatted,
-        },
-      ]);
-
-      // Update content state
-      setContent(formatted);
-      debouncedSave(formatted);
-    }
-  };
-
-  const shortcutContent = (
-    <div className="p-2">
-      <div className="text-lg font-semibold mb-2">Keyboard Shortcuts</div>
-      <List
-        size="small"
-        dataSource={[
-          { shortcut: "Alt + B", desc: "Bold" },
-          { shortcut: "Alt + I", desc: "Italic" },
-          { shortcut: "Alt + K", desc: "Link" },
-          { shortcut: "Alt + Shift + X", desc: "Task Item" },
-          { shortcut: "Alt + E", desc: "Inline Code" },
-          { shortcut: "Ctrl + Shift + F", desc: "Format Markdown" },
-          { shortcut: "Alt + Shift + E", desc: "Code Block" },
-          { shortcut: "Ctrl + Alt + 1-3", desc: "Headings" },
-          { shortcut: "Alt + Shift + L", desc: "List Item" },
-          { shortcut: "Alt + Shift + N", desc: "Numbered List Item" },
-        ]}
-        renderItem={(item) => (
-          <List.Item>
-            <Tag>{item.shortcut}</Tag> {item.desc}
-          </List.Item>
-        )}
-      />
-      <p className="text-xs text-gray-500 mt-1">
-        Use these shortcuts to quickly format your markdown content.
-      </p>
-    </div>
-  );
-
-  const suggestionHelpContent = (
-    <div className="p-2">
-      <div className="text-lg font-semibold mb-2">Auto-suggestions</div>
-      <p>
-        Type <Tag>@</Tag> to access these markdown snippets:
-      </p>
-      <List
-        size="small"
-        dataSource={[
-          { tag: "@link", desc: "Insert link" },
-          { tag: "@image", desc: "Insert image" },
-          { tag: "@code", desc: "Insert code block" },
-          { tag: "@table", desc: "Insert table (@table:3:2 for custom size)" },
-          { tag: "@task", desc: "Insert task item" },
-          { tag: "@note", desc: "Insert note callout" },
-          { tag: "@warning", desc: "Insert warning callout" },
-        ]}
-        renderItem={(item) => (
-          <List.Item>
-            <Tag>{item.tag}</Tag> {item.desc}
-          </List.Item>
-        )}
-      />
-      <p className="text-xs text-gray-500 mt-1">
-        Additional suggestions appear as you type headers and lists.
-      </p>
-    </div>
-  );
-
   return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
-        <Card
-          size="small"
-          title="Editor"
-          extra={
-            <>
-              <Button
-                type="text"
-                icon={<FormatPainterOutlined />}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  formatMarkdown();
-                }}
-                title="Format Markdown (Ctrl+Shift+F)"
-              />
-              <Popover content={shortcutContent} trigger="hover">
-                <Button
-                  type="text"
-                  icon={<QuestionCircleOutlined />}
-                  onClick={(e) => e.stopPropagation()}
-                  title="Keyboard shortcuts"
-                />
-              </Popover>
-              <Popover content={suggestionHelpContent} trigger="hover">
-                <Button
-                  type="text"
-                  icon={<BulbOutlined />}
-                  onClick={(e) => e.stopPropagation()}
-                  title="Suggestion help"
-                />
-              </Popover>
-            </>
-          }
-        >
-          <MonacoEditor
-            height="500px"
-            defaultLanguage="markdown"
-            value={content}
-            onChange={handleEditorChange}
-            theme="vs-light"
-            options={{
-              wordWrap: "on",
-              minimap: { enabled: false },
-              lineNumbers: "on",
-              folding: true,
-              scrollBeyondLastLine: false,
-              quickSuggestions: {
-                other: true,
-                comments: true,
-                strings: true,
-              },
-              tabSize: 2,
-              suggestOnTriggerCharacters: true,
-              acceptSuggestionOnEnter: "on",
-              tabCompletion: "on",
-              snippetSuggestions: "on",
-            }}
-            onMount={handleEditorDidMount}
-            beforeMount={(monaco) => {
-              window.monaco = monaco;
-            }}
-          />
-        </Card>
-
-        {/* Preview Panel */}
-        <Card size="small" title="Preview">
-          <MarkdownPreview
-            content={content}
-            ref={previewRef}
-            onScroll={handlePreviewScroll}
-            onCheckboxToggle={handleCheckboxToggle}
-          />
-        </Card>
-      </div>
-
-      {saving && (
-        <div className="flex gap-1 items-center mt-2">
-          <Spin size="small" />
-          <span className="text-xs text-gray-500">Saving...</span>
-        </div>
-      )}
-    </>
+    <div ref={containerRef} className="h-full">
+      <MonacoEditor
+        defaultLanguage="markdown"
+        value={value}
+        onChange={onChange}
+        theme="vs-light"
+        options={{
+          wordWrap: "on",
+          minimap: { enabled: false },
+          lineNumbers: "on",
+          folding: true,
+          scrollBeyondLastLine: false,
+          quickSuggestions: {
+            other: true,
+            comments: true,
+            strings: true,
+          },
+          tabSize: 2,
+          suggestOnTriggerCharacters: true,
+          acceptSuggestionOnEnter: "on",
+          tabCompletion: "on",
+          snippetSuggestions: "on",
+        }}
+        onMount={handleEditorDidMount}
+        beforeMount={(monaco) => {
+          window.monaco = monaco;
+        }}
+      />
+    </div>
   );
-}
+});

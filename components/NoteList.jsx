@@ -13,7 +13,6 @@ import {
 import {
   FileTextOutlined,
   FolderOutlined,
-  FolderOpenOutlined,
   SearchOutlined,
   DownOutlined,
   DeleteOutlined,
@@ -25,29 +24,32 @@ import {
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
 import useNoteStore from "@/store/noteStore";
-import { buildTreeData, convertToTreeNode, findMatchingNodes, findNodeByPos } from "@/utils/treeUtils";
+import {
+  buildTreeData,
+  convertToTreeNode,
+  findMatchingNodes,
+  findNodeByPos,
+  getParentKeys,
+} from "@/utils/treeUtils";
 
 const { DirectoryTree } = Tree;
 
-export default function NoteList({
-  activeNoteId = null,
-  onSelectNote = () => {},
-}) {
+export default function NoteList({ onSelectNote = () => {} }) {
   // Get state and actions from the store
-  const { 
-    notes, 
-    trashNotes, 
-    loading, 
+  const {
+    note,
+    notes,
+    trashNotes,
+    loading,
     loadedFolders,
-    trashLoaded,
-    deleteNote, 
-    restoreNote, 
-    renameNote, 
-    createNote, 
+    deleteNote,
+    restoreNote,
+    renameNote,
+    createNote,
     moveNote,
     fetchRootNotes,
     fetchFolderChildren,
-    fetchTrashItems
+    fetchTrashItems,
   } = useNoteStore();
 
   const [expandedKeys, setExpandedKeys] = useState([]);
@@ -73,7 +75,7 @@ export default function NoteList({
   useEffect(() => {
     if (notes.length) {
       // Convert loadedFolders Set to regular Set for treeUtils
-      const loadedFoldersSet = new Set([...loadedFolders].map(id => id));
+      const loadedFoldersSet = new Set([...loadedFolders].map((id) => id));
       const processedTreeData = buildTreeData(notes, false, loadedFoldersSet);
       setTreeData(processedTreeData);
     } else {
@@ -84,7 +86,9 @@ export default function NoteList({
   // Handle trash notes separately
   useEffect(() => {
     if (trashNotes.length) {
-      const processedTrashItems = trashNotes.map(note => convertToTreeNode(note, true));
+      const processedTrashItems = trashNotes.map((note) =>
+        convertToTreeNode(note, true)
+      );
       setTrashItems(processedTrashItems);
     } else {
       setTrashItems([]);
@@ -437,6 +441,27 @@ export default function NoteList({
     fetchRootNotes();
   }, []);
 
+  // Track selected note to expand parents
+  useEffect(() => {
+    if (note?.id && treeData.length > 0) {
+      // Find all parent folder IDs for the current note
+      const parentKeys = getParentKeys(treeData, note.id);
+      
+      if (parentKeys.length > 0) {
+        // Add parent keys to expanded keys without losing current expanded state
+        setExpandedKeys(prev => {
+          const newKeys = [...prev];
+          parentKeys.forEach(key => {
+            if (!newKeys.includes(key)) {
+              newKeys.push(key);
+            }
+          });
+          return newKeys;
+        });
+      }
+    }
+  }, [note, treeData]);
+
   return (
     <>
       <div className="h-full flex flex-col">
@@ -544,7 +569,7 @@ export default function NoteList({
                       expandedKeys={expandedKeys}
                       autoExpandParent={autoExpandParent}
                       onExpand={onExpand}
-                      selectedKeys={activeNoteId ? [activeNoteId] : []}
+                      selectedKeys={note ? [note.id] : []}
                       showIcon
                       onRightClick={handleRightClick}
                       draggable={(node) =>

@@ -5,7 +5,9 @@ import { connectDB } from "@/lib/mongoose";
 import Note from "@/models/Note";
 
 // PUT handler - restore a note from trash
-export async function PUT(request, { params }) {
+export async function PUT(request, props) {
+  const params = await props.params;
+  
   const session = await getServerSession(auth);
   if (!session) {
     return NextResponse.json(

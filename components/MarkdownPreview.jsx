@@ -16,7 +16,7 @@ const MarkdownPreview = forwardRef(
 
     return (
       <div
-        className="markdown-body prose max-w-none overflow-y-auto overflow-x-hidden h-[500px]"
+        className="markdown-body overflow-y-auto overflow-x-hidden h-full p-2 bg-white"
         ref={previewRef}
         onScroll={onScroll}
       >

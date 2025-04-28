@@ -1,27 +1,11 @@
-/**
- * Service for interacting with the note API endpoints
- */
+import api from "@/lib/api";
 
-/**
- * Fetch root level notes (notes without a parent)
- * @returns {Promise} Promise with the API response
- */
 export async function fetchRootNotes() {
   try {
-    const response = await fetch('/api/note?root=true', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
-    }
-    
-    return await response.json();
+    const response = await api.get("/note?root=true");
+    return response.data;
   } catch (error) {
-    console.error('Failed to fetch root notes:', error);
+    console.error("Failed to fetch root notes:", error);
     throw error;
   }
 }
@@ -33,18 +17,8 @@ export async function fetchRootNotes() {
  */
 export async function fetchFolderChildren(folderId) {
   try {
-    const response = await fetch(`/api/note?parentId=${folderId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
-    }
-    
-    return await response.json();
+    const response = await api.get(`/note?parentId=${folderId}`);
+    return response.data;
   } catch (error) {
     console.error(`Failed to fetch children for folder ${folderId}:`, error);
     throw error;
@@ -57,20 +31,10 @@ export async function fetchFolderChildren(folderId) {
  */
 export async function fetchTrashNotes() {
   try {
-    const response = await fetch('/api/note?trash=true', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
-    }
-    
-    return await response.json();
+    const response = await api.get("/note?trash=true");
+    return response.data;
   } catch (error) {
-    console.error('Failed to fetch trash notes:', error);
+    console.error("Failed to fetch trash notes:", error);
     throw error;
   }
 }
@@ -82,27 +46,16 @@ export async function fetchTrashNotes() {
  */
 export async function createNote(noteData) {
   try {
-    const response = await fetch('/api/note', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(noteData),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
-    }
-    
+    const response = await api.post("/note", noteData);
     return {
-      data: await response.json(),
-      success: true
+      data: response.data,
+      success: true,
     };
   } catch (error) {
-    console.error('Failed to create note:', error);
+    console.error("Failed to create note:", error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -115,27 +68,16 @@ export async function createNote(noteData) {
  */
 export async function updateNote(noteId, noteData) {
   try {
-    const response = await fetch(`/api/note/${noteId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(noteData),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
-    }
-    
+    const response = await api.put(`/note/${noteId}`, noteData);
     return {
-      data: await response.json(),
-      success: true
+      data: response.data,
+      success: true,
     };
   } catch (error) {
     console.error(`Failed to update note ${noteId}:`, error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -147,26 +89,37 @@ export async function updateNote(noteId, noteData) {
  */
 export async function trashNote(noteId) {
   try {
-    const response = await fetch(`/api/note/${noteId}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
-    }
-    
+    const response = await api.delete(`/note/${noteId}`);
     return {
-      data: await response.json(),
-      success: true
+      data: response.data,
+      success: true,
     };
   } catch (error) {
     console.error(`Failed to trash note ${noteId}:`, error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
+    };
+  }
+}
+
+/**
+ * Get a note by ID
+ * @param {string} noteId - ID of the note to fetch
+ * @returns {Promise} Promise with the API response
+ */
+export async function getNoteById(noteId) {
+  try {
+    const response = await api.get(`/note/${noteId}`);
+    return {
+      data: response.data,
+      success: true,
+    };
+  } catch (error) {
+    console.error(`Failed to fetch note ${noteId}:`, error);
+    return {
+      success: false,
+      error: error.message,
     };
   }
 }
@@ -178,26 +131,16 @@ export async function trashNote(noteId) {
  */
 export async function restoreNote(noteId) {
   try {
-    const response = await fetch(`/api/note/${noteId}/restore`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
-    }
-    
+    const response = await api.put(`/note/${noteId}/restore`);
     return {
-      data: await response.json(),
-      success: true
+      data: response.data,
+      success: true,
     };
   } catch (error) {
     console.error(`Failed to restore note ${noteId}:`, error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
     };
   }
 }
@@ -210,27 +153,16 @@ export async function restoreNote(noteId) {
  */
 export async function moveNote(noteId, parentId) {
   try {
-    const response = await fetch(`/api/note/${noteId}/move`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ parentId }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Error: ${response.status}`);
-    }
-    
+    const response = await api.patch(`/note/${noteId}/move`, { parentId });
     return {
-      data: await response.json(),
-      success: true
+      data: response.data,
+      success: true,
     };
   } catch (error) {
     console.error(`Failed to move note ${noteId}:`, error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
     };
   }
 }
