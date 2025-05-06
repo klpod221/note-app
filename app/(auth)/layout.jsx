@@ -10,7 +10,7 @@ export default function AuthLayout({ children }) {
         </div>
       </div>
 
-      <div className="bg-white flex flex-col items-center justify-center p-12 order-1 md:order-2">
+      <div className="bg-gradient-to-br from-teal-500 to-blue-500 flex flex-col items-center justify-center p-12 order-1 md:order-2">
         <div className="bg-gray-200 rounded-full p-6">
           <Image
             priority
@@ -26,6 +26,8 @@ export default function AuthLayout({ children }) {
           <Link
             href="https://klpod221.com"
             target="_blank"
+            className="!text-[#000000E0] hover:!underline"
+            rel="noopener noreferrer"
           >
             klpod221
           </Link>

@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Spin, Result, Button } from "antd";
-import NoteEditor from "@/components/NoteEditor";
 import useNoteStore from "@/store/noteStore";
+
+import { updateNote } from "@/services/noteService";
+
+import NoteEditor from "@/components/NoteEditor";
 
 export default function NotePage() {
   const { id } = useParams();
@@ -50,8 +53,8 @@ export default function NotePage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-96px)]">
-      <NoteEditor />
+    <div className="flex flex-col h-[calc(100vh-84px)]">
+      <NoteEditor updateNote={updateNote} />
     </div>
   );
 }

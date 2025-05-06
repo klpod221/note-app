@@ -18,12 +18,10 @@ export default function Login() {
       notify.loading("Logging in...");
       await login(values.email, values.password);
       notify.success("Login successful!");
-      router.push("/");
+      router.push("/home");
     } catch (error) {
       notify.error(error.message || "Login failed");
       console.error(error);
-    } finally {
-      setLoading(false);
     }
   };
 

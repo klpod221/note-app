@@ -166,3 +166,23 @@ export async function moveNote(noteId, parentId) {
     };
   }
 }
+
+/**
+ * Fetch readme notes
+ * @returns {Promise} Promise with the API response
+ */
+export async function fetchReadmeNotes() {
+  try {
+    const response = await api.get("/readme");
+    return {
+      ...response.data,
+      success: true
+    };
+  } catch (error) {
+    console.error("Failed to fetch readme notes:", error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}

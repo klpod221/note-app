@@ -5,8 +5,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import useCurrentUser from "@/hooks/useCurrentUser";
 import useWindowSize from "@/hooks/useWindowSize";
 
-import Header from "@/components/layouts/Header";
-import Sidebar from "@/components/layouts/Sidebar";
+import Header from "@/components/layouts/private/Header";
+import Sidebar from "@/components/layouts/private/Sidebar";
 
 import { Layout, Spin } from "antd";
 
@@ -57,7 +57,7 @@ export default function PrivateLayout({ children }) {
         open={open} 
         toggleDrawer={toggleDrawer} 
       />
-      <Layout className="pt-[64px]">
+      <Layout className="pt-[52px]">
         <Sidebar 
           user={user}
           isMobile={isMobile} 

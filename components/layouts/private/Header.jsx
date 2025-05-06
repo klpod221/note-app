@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import useNotify from "@/hooks/useNotify";
@@ -74,7 +75,7 @@ export default function Header({ user, open, toggleDrawer }) {
       style={{
         background: "#fff",
         padding: "0 16px",
-        height: "64px",
+        height: "52px",
       }}
     >
       <div className="flex items-center">
@@ -90,8 +91,10 @@ export default function Header({ user, open, toggleDrawer }) {
           onClick={toggleDrawer}
           className="mr-3"
         />
-        <Image src="/images/logo.png" alt="Logo" width={20} height={20} />
-        <span className="ml-2 text-lg font-semibold">Note-Taking App</span>
+        <Link href="/home" className="flex items-center">
+          <Image src="/images/logo.png" alt="Logo" width={20} height={20} />
+          <h1 className="ml-2 mt-1 !text-[#000000E0] text-lg font-semibold">Note-Taking App</h1>
+        </Link>
       </div>
 
       <div className="flex items-center">

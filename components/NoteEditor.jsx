@@ -4,8 +4,6 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import useNoteStore from "@/store/noteStore";
 import debounce from "lodash.debounce";
 
-import { updateNote } from "@/services/noteService";
-
 import MarkdownEditor from "@/components/MarkdownEditor";
 import MarkdownPreview from "@/components/MarkdownPreview";
 
@@ -17,32 +15,51 @@ import {
   FormatPainterOutlined,
   QuestionCircleOutlined,
   BulbOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
 } from "@ant-design/icons";
 
-export default function NoteEditor() {
+export default function NoteEditor({ updateNote = null, content = "" }) {
   const { note } = useNoteStore();
-  const [noteContent, setNoteContent] = useState("");
+  const [noteContent, setNoteContent] = useState(content);
   const [viewMode, setViewMode] = useState("split"); // 'edit', 'preview', 'split'
   const [isSaving, setIsSaving] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(true);
 
   // Refs for scroll synchronization
   const editorRef = useRef(null);
   const previewRef = useRef(null);
+  const editorContainerRef = useRef(null);
 
-  // Update local content when note changes
+  // Update local content when note changes or when content prop changes
   useEffect(() => {
     if (note && note.id) {
       setNoteContent(note.content);
+    } else if (content) {
+      setNoteContent(content);
     }
-  }, [note]);
+  }, [note, content]);
+
+  // Recalculate dimensions when view mode changes
+  useEffect(() => {
+    // Temporarily disable scroll sync during transition
+    setIsScrollSyncEnabled(false);
+
+    // Allow DOM to update before re-enabling scroll sync
+    const timer = setTimeout(() => {
+      setIsScrollSyncEnabled(true);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [viewMode]);
 
   // Check if note is deleted (read-only)
   const isNoteDeleted =
     note && note.deletedAt !== undefined && note.deletedAt !== null;
 
   const saveNote = async (content) => {
-    // Don't allow saving for deleted notes
-    if (isNoteDeleted) {
+    if (!updateNote || typeof updateNote !== "function" || isNoteDeleted) {
       return;
     }
 
@@ -100,7 +117,7 @@ export default function NoteEditor() {
 
   // Scroll synchronization
   const handleEditorScroll = (e) => {
-    if (viewMode !== "split" || !previewRef.current) return;
+    if (viewMode !== "split" || !previewRef.current || !isScrollSyncEnabled) return;
 
     const editor = editorRef.current;
     const previewElement = previewRef.current;
@@ -123,7 +140,7 @@ export default function NoteEditor() {
   };
 
   const handlePreviewScroll = (e) => {
-    if (viewMode !== "split" || !editorRef.current) return;
+    if (viewMode !== "split" || !editorRef.current || !isScrollSyncEnabled) return;
 
     const preview = e.target;
     const editor = editorRef.current;
@@ -134,11 +151,10 @@ export default function NoteEditor() {
     if (previewHeight <= 0) return; // Prevent division by zero
 
     const scrollPercentage = preview.scrollTop / previewHeight;
+    const editorScrollHeight = editor.scrollHeight - editor.clientHeight;
 
     // Apply scroll to editor without triggering its scroll handler
-    editor.setScrollTop(
-      scrollPercentage * (editor.scrollHeight - editor.clientHeight)
-    );
+    editor.setScrollTop(scrollPercentage * editorScrollHeight);
   };
 
   // Show deleted note warning
@@ -205,8 +221,28 @@ export default function NoteEditor() {
     </div>
   );
 
+  // Toggle fullscreen mode
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
+  };
+
+  // Handle ESC key to exit fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFullscreen]);
+
   return (
-    <div className="flex flex-col h-full">
+    <div 
+      className={`flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-white' : 'h-full'}`}
+      ref={editorContainerRef}
+    >
       {/* Toolbar */}
       <div className="bg-white border-b border-gray-200 p-2 flex items-center justify-between">
         <div className="flex items-center gap-1">
@@ -251,7 +287,7 @@ export default function NoteEditor() {
               icon={<SaveOutlined />}
               className="flex"
               loading={isSaving}
-              disabled={isReadOnly}
+              disabled={isReadOnly || !updateNote || typeof updateNote !== "function"}
             >
               Save
             </Button>
@@ -289,6 +325,14 @@ export default function NoteEditor() {
               title="Suggestion help"
             />
           </Popover>
+          <Tooltip title={isFullscreen ? "Exit full screen" : "Full screen"}>
+            <Button
+              type="text"
+              icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "Exit full screen (ESC)" : "Full screen"}
+            />
+          </Tooltip>
         </div>
       </div>
 

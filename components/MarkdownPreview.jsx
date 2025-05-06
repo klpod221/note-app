@@ -42,7 +42,7 @@ const MarkdownPreview = forwardRef(
               );
             },
             li({ node, ...props }) {
-              if (node.children[0]?.tagName) {
+              if (node.children[0]?.tagName && node.children[0].tagName === "input") {
                 const index = node.position.start.line - 1;
                 const checked =
                   node.children[0].tagName === "input" &&

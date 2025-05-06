@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "github-markdown-css/github-markdown-light.css";
 
+/* Smooth scrool */
+html {
+  scroll-behavior: smooth;
+}
+
 ol,
 ul,
 menu {
@@ -29,4 +34,14 @@ menu {
 
 .ant-tree .ant-tree-node-content-wrapper {
   padding-inline: 0 !important;
+}
+
+.ant-tree-node-content-wrapper {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.markdown-body img {
+  display: unset;
 }
