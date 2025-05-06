@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import useNoteStore from "@/store/noteStore";
 import debounce from "lodash.debounce";
+import useNoteStore from "@/store/noteStore";
+import useWindowSize from "@/hooks/useWindowSize";
+import { formatShortcut } from "@/utils/helperUtils";
+import {
+  EDITOR_SUGGESTIONS_HELP,
+  EDITOR_SHORTCUTS,
+} from "@/constants/shortcuts";
 
 import MarkdownEditor from "@/components/MarkdownEditor";
 import MarkdownPreview from "@/components/MarkdownPreview";
@@ -27,10 +33,21 @@ export default function NoteEditor({ updateNote = null, content = "" }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(true);
 
+  // Use the window size hook
+  const windowSize = useWindowSize();
+  const isMobile = windowSize.width < 768;
+
   // Refs for scroll synchronization
   const editorRef = useRef(null);
   const previewRef = useRef(null);
   const editorContainerRef = useRef(null);
+
+  // Update view mode when switching to mobile
+  useEffect(() => {
+    if (isMobile && viewMode === "split") {
+      setViewMode("edit");
+    }
+  }, [isMobile, viewMode]);
 
   // Update local content when note changes or when content prop changes
   useEffect(() => {
@@ -117,7 +134,8 @@ export default function NoteEditor({ updateNote = null, content = "" }) {
 
   // Scroll synchronization
   const handleEditorScroll = (e) => {
-    if (viewMode !== "split" || !previewRef.current || !isScrollSyncEnabled) return;
+    if (viewMode !== "split" || !previewRef.current || !isScrollSyncEnabled)
+      return;
 
     const editor = editorRef.current;
     const previewElement = previewRef.current;
@@ -140,7 +158,8 @@ export default function NoteEditor({ updateNote = null, content = "" }) {
   };
 
   const handlePreviewScroll = (e) => {
-    if (viewMode !== "split" || !editorRef.current || !isScrollSyncEnabled) return;
+    if (viewMode !== "split" || !editorRef.current || !isScrollSyncEnabled)
+      return;
 
     const preview = e.target;
     const editor = editorRef.current;
@@ -165,21 +184,10 @@ export default function NoteEditor({ updateNote = null, content = "" }) {
       <div className="text-lg font-semibold mb-2">Keyboard Shortcuts</div>
       <List
         size="small"
-        dataSource={[
-          { shortcut: "Alt + B", desc: "Bold" },
-          { shortcut: "Alt + I", desc: "Italic" },
-          { shortcut: "Alt + K", desc: "Link" },
-          { shortcut: "Alt + Shift + X", desc: "Task Item" },
-          { shortcut: "Alt + E", desc: "Inline Code" },
-          { shortcut: "Ctrl + Shift + F", desc: "Format Markdown" },
-          { shortcut: "Alt + Shift + E", desc: "Code Block" },
-          { shortcut: "Ctrl + Alt + 1-3", desc: "Headings" },
-          { shortcut: "Alt + Shift + L", desc: "List Item" },
-          { shortcut: "Alt + Shift + N", desc: "Numbered List Item" },
-        ]}
+        dataSource={Object.values(EDITOR_SHORTCUTS)}
         renderItem={(item) => (
           <List.Item>
-            <Tag>{item.shortcut}</Tag> {item.desc}
+            <Tag>{formatShortcut(item)}</Tag> {item.desc}
           </List.Item>
         )}
       />
@@ -197,18 +205,7 @@ export default function NoteEditor({ updateNote = null, content = "" }) {
       </p>
       <List
         size="small"
-        dataSource={[
-          { tag: "@link", desc: "Insert link" },
-          { tag: "@image", desc: "Insert image" },
-          { tag: "@code", desc: "Insert code block" },
-          {
-            tag: "@table",
-            desc: "Insert table (@table:3:2 for custom size)",
-          },
-          { tag: "@task", desc: "Insert task item" },
-          { tag: "@note", desc: "Insert note callout" },
-          { tag: "@warning", desc: "Insert warning callout" },
-        ]}
+        dataSource={EDITOR_SUGGESTIONS_HELP}
         renderItem={(item) => (
           <List.Item>
             <Tag>{item.tag}</Tag> {item.desc}
@@ -226,11 +223,18 @@ export default function NoteEditor({ updateNote = null, content = "" }) {
     setIsFullscreen(!isFullscreen);
   };
 
-  // Handle ESC key to exit fullscreen
+  // Handle ESC key to exit fullscreen and Alt+F11 to toggle fullscreen
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Exit fullscreen with ESC key
       if (e.key === "Escape" && isFullscreen) {
         setIsFullscreen(false);
+      }
+
+      // Toggle fullscreen with Alt+F11
+      if (e.key === "F11" && e.altKey) {
+        e.preventDefault(); // Prevent browser's default F11 behavior
+        toggleFullscreen();
       }
     };
 
@@ -239,116 +243,153 @@ export default function NoteEditor({ updateNote = null, content = "" }) {
   }, [isFullscreen]);
 
   return (
-    <div 
-      className={`flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-white' : 'h-full'}`}
+    <div
+      className={`flex flex-col ${
+        isFullscreen ? "fixed inset-0 z-50 bg-white" : "h-full"
+      }`}
       ref={editorContainerRef}
     >
-      {/* Toolbar */}
-      <div className="bg-white border-b border-gray-200 p-2 flex items-center justify-between">
-        <div className="flex items-center gap-1">
-          {/* View mode toggles */}
-          <Tooltip title="Edit mode">
-            <Button
-              type={viewMode === "edit" ? "primary" : "default"}
-              icon={<EditOutlined />}
-              onClick={() => setViewMode("edit")}
-              disabled={isReadOnly}
-            />
-          </Tooltip>
-          <Tooltip title="Preview mode">
-            <Button
-              type={viewMode === "preview" ? "primary" : "default"}
-              icon={<EyeOutlined />}
-              onClick={() => setViewMode("preview")}
-            />
-          </Tooltip>
-          <Tooltip title="Split mode">
-            <Button
-              type={viewMode === "split" ? "primary" : "default"}
-              onClick={() => setViewMode("split")}
-              disabled={isReadOnly && viewMode !== "split"}
+      {/* Toolbar - keeping the same layout for desktop and mobile */}
+      <div className="bg-white border-b border-gray-200 p-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            {/* View mode toggles */}
+            <Tooltip title="Edit mode">
+              <Button
+                type={viewMode === "edit" ? "primary" : "default"}
+                icon={<EditOutlined />}
+                onClick={() => setViewMode("edit")}
+                disabled={isReadOnly}
+                size={isMobile ? "small" : "middle"}
+              />
+            </Tooltip>
+            <Tooltip title="Preview mode">
+              <Button
+                type={viewMode === "preview" ? "primary" : "default"}
+                icon={<EyeOutlined />}
+                onClick={() => setViewMode("preview")}
+                size={isMobile ? "small" : "middle"}
+              />
+            </Tooltip>
+            {/* Only show split mode button on desktop */}
+            {!isMobile && (
+              <Tooltip title="Split mode">
+                <Button
+                  type={viewMode === "split" ? "primary" : "default"}
+                  onClick={() => setViewMode("split")}
+                  disabled={isReadOnly && viewMode !== "split"}
+                >
+                  <div className="flex items-center">
+                    <EditOutlined style={{ fontSize: "0.75rem" }} />
+                    <span className="mx-0.5">|</span>
+                    <EyeOutlined style={{ fontSize: "0.75rem" }} />
+                  </div>
+                </Button>
+              </Tooltip>
+            )}
+            <Divider type="vertical" />
+            <Tooltip
+              title={isReadOnly ? "Cannot save deleted notes" : "Manual save"}
             >
-              <div className="flex items-center">
-                <EditOutlined style={{ fontSize: "0.75rem" }} />
-                <span className="mx-0.5">|</span>
-                <EyeOutlined style={{ fontSize: "0.75rem" }} />
-              </div>
-            </Button>
-          </Tooltip>
-
-          <Divider type="vertical" />
-
-          {/* Save button */}
-          <Tooltip
-            title={isReadOnly ? "Cannot save deleted notes" : "Manual save"}
-          >
-            <Button
-              onClick={() => saveNote(noteContent)}
-              icon={<SaveOutlined />}
-              className="flex"
-              loading={isSaving}
-              disabled={isReadOnly || !updateNote || typeof updateNote !== "function"}
+              <Button
+                onClick={() => saveNote(noteContent)}
+                icon={<SaveOutlined />}
+                className="flex"
+                loading={isSaving}
+                disabled={
+                  isReadOnly || !updateNote || typeof updateNote !== "function"
+                }
+                size={isMobile ? "small" : "middle"}
+              >
+                {isMobile ? "" : "Save"}
+              </Button>
+            </Tooltip>
+            {isReadOnly && (
+              <Tag color="error" className={isMobile ? "text-xs" : "ml-2"}>
+                {isMobile ? "Read-only" : "Deleted Note (Read-only)"}
+              </Tag>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <Tooltip
+              title={
+                EDITOR_SHORTCUTS.FORMAT.desc +
+                ` (${formatShortcut(EDITOR_SHORTCUTS.FORMAT)})`
+              }
             >
-              Save
-            </Button>
-          </Tooltip>
-
-          {isReadOnly && (
-            <Tag color="error" className="ml-2">
-              Deleted Note (Read-only)
-            </Tag>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            type="text"
-            icon={<FormatPainterOutlined />}
-            onClick={(e) => {
-              e.stopPropagation();
-              formatMarkdown();
-            }}
-            title="Format Markdown (Ctrl+Shift+F)"
-          />
-          <Popover content={shortcutContent} trigger="hover">
-            <Button
-              type="text"
-              icon={<QuestionCircleOutlined />}
-              onClick={(e) => e.stopPropagation()}
-              title="Keyboard shortcuts"
-            />
-          </Popover>
-          <Popover content={suggestionHelpContent} trigger="hover">
-            <Button
-              type="text"
-              icon={<BulbOutlined />}
-              onClick={(e) => e.stopPropagation()}
-              title="Suggestion help"
-            />
-          </Popover>
-          <Tooltip title={isFullscreen ? "Exit full screen" : "Full screen"}>
-            <Button
-              type="text"
-              icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-              onClick={toggleFullscreen}
-              title={isFullscreen ? "Exit full screen (ESC)" : "Full screen"}
-            />
-          </Tooltip>
+              <Button
+                type="text"
+                icon={<FormatPainterOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  formatMarkdown();
+                }}
+                size={isMobile ? "small" : "middle"}
+              />
+            </Tooltip>
+            <Popover
+              content={shortcutContent}
+              trigger={isMobile ? "click" : "hover"}
+            >
+              <Button
+                type="text"
+                icon={<QuestionCircleOutlined />}
+                onClick={(e) => e.stopPropagation()}
+                size={isMobile ? "small" : "middle"}
+              />
+            </Popover>
+            <Popover
+              content={suggestionHelpContent}
+              trigger={isMobile ? "click" : "hover"}
+            >
+              <Button
+                type="text"
+                icon={<BulbOutlined />}
+                onClick={(e) => e.stopPropagation()}
+                size={isMobile ? "small" : "middle"}
+              />
+            </Popover>
+            <Tooltip
+              title={
+                isFullscreen
+                  ? EDITOR_SHORTCUTS.FULLSCREEN_EXIT.desc +
+                    ` (${formatShortcut(EDITOR_SHORTCUTS.FULLSCREEN_EXIT)})`
+                  : EDITOR_SHORTCUTS.FULLSCREEN.desc +
+                    ` (${formatShortcut(EDITOR_SHORTCUTS.FULLSCREEN)})`
+              }
+            >
+              <Button
+                type="text"
+                icon={
+                  isFullscreen ? (
+                    <FullscreenExitOutlined />
+                  ) : (
+                    <FullscreenOutlined />
+                  )
+                }
+                onClick={toggleFullscreen}
+                size={isMobile ? "small" : "middle"}
+              />
+            </Tooltip>
+          </div>
         </div>
       </div>
 
       {/* Content area */}
       <div
         className={`flex-grow flex ${
-          viewMode === "split" ? "flex-row" : "flex-col"
+          viewMode === "split" && !isMobile ? "flex-row" : "flex-col"
         } overflow-hidden`}
       >
         {/* Editor */}
         <div
           className={`${
-            viewMode === "split" ? "w-1/2" : "w-full"
-          } h-full overflow-hidden border-r border-gray-200 ${
-            viewMode !== "edit" && viewMode !== "split" ? "hidden" : ""
-          }`}
+            viewMode === "split" && !isMobile ? "w-1/2" : "w-full"
+          } ${
+            viewMode === "split" && isMobile ? "h-1/2" : ""
+          } h-full overflow-hidden ${
+            viewMode === "split" && !isMobile ? "border-r border-gray-200" : ""
+          } ${viewMode !== "edit" && viewMode !== "split" ? "hidden" : ""}`}
         >
           <MarkdownEditor
             ref={editorRef}
@@ -362,7 +403,9 @@ export default function NoteEditor({ updateNote = null, content = "" }) {
         {/* Preview */}
         <div
           className={`${
-            viewMode === "split" ? "w-1/2" : "w-full"
+            viewMode === "split" && !isMobile ? "w-1/2" : "w-full"
+          } ${
+            viewMode === "split" && isMobile ? "h-1/2" : ""
           } h-full overflow-hidden ${
             viewMode !== "preview" && viewMode !== "split" ? "hidden" : ""
           }`}

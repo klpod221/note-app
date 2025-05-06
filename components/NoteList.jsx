@@ -1,7 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { motion } from "framer-motion";
+import { formatShortcut } from "@/utils/helperUtils";
+import { buildTreeData, findNodeByPos, getParentKeys } from "@/utils/treeUtils";
+import useNoteStore from "@/store/noteStore";
+import { NOTE_LIST_SHORTCUTS } from "@/constants/shortcuts";
+import useKeyboardShortcuts from "@/hooks/useKeyboardShortcuts";
+import SearchModal from "@/components/SearchModal";
+
 import {
   Tree,
-  Input,
   Spin,
   Dropdown,
   Empty,
@@ -9,11 +16,12 @@ import {
   Tooltip,
   Modal,
   Form,
+  Input,
+  message,
 } from "antd";
 import {
   FileTextOutlined,
   FolderOutlined,
-  SearchOutlined,
   DownOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -21,15 +29,8 @@ import {
   ReloadOutlined,
   DeleteFilled,
   UndoOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
-import { motion } from "framer-motion";
-import useNoteStore from "@/store/noteStore";
-import {
-  buildTreeData,
-  findMatchingNodes,
-  findNodeByPos,
-  getParentKeys,
-} from "@/utils/treeUtils";
 
 const { DirectoryTree } = Tree;
 
@@ -41,7 +42,7 @@ export default function NoteList({ onSelectNote = () => {} }) {
     trashNotes,
     loading,
     loadedFolders,
-    parentFoldersLoaded, // Add this flag from the store
+    parentFoldersLoaded,
     deleteNote,
     restoreNote,
     renameNote,
@@ -53,23 +54,29 @@ export default function NoteList({ onSelectNote = () => {} }) {
   } = useNoteStore();
 
   const [expandedKeys, setExpandedKeys] = useState([]);
-  const [searchValue, setSearchValue] = useState("");
   const [autoExpandParent, setAutoExpandParent] = useState(true);
   const [treeData, setTreeData] = useState([]);
   const [trashItems, setTrashItems] = useState([]);
-  const [rightClickedNode, setRightClickedNode] = useState(null);
-  const [contextMenuPosition, setContextMenuPosition] = useState({
-    x: 0,
-    y: 0,
-  });
-  const [isTreeAreaContextMenu, setIsTreeAreaContextMenu] = useState(false);
   const [loadedKeys, setLoadedKeys] = useState([]);
 
-  // Modal states
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState("create");
-  const [activeItem, setActiveItem] = useState({});
+  // Combined context menu state
+  const [contextMenu, setContextMenu] = useState({
+    node: null,
+    position: { x: 0, y: 0 },
+    isTreeArea: false,
+  });
+
+  // Combined modal state
+  const [modal, setModal] = useState({
+    open: false,
+    type: "create",
+    item: {},
+  });
   const [modalForm] = Form.useForm();
+  const inputRef = useRef(null);
+
+  // Simplified search modal state
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   // Transform flat notes array into tree structure
   useEffect(() => {
@@ -102,28 +109,47 @@ export default function NoteList({ onSelectNote = () => {} }) {
   }, [trashNotes, loadedFolders]);
 
   const handleModalOpen = (type, item) => {
-    setModalType(type);
-    setActiveItem(item);
+    setModal({
+      open: true,
+      type,
+      item,
+    });
     modalForm.setFieldsValue({
       name: item.name || "",
     });
-    setModalOpen(true);
+
+    // Focus will happen after render via useEffect
   };
 
+  // Add effect to focus the input when modal opens
+  useEffect(() => {
+    if (modal.open) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 0);
+    }
+  }, [modal.open]);
+
   const handleFormSubmit = (values) => {
-    if (modalType === "create") {
+    if (modal.type === "create") {
+      console.log("Creating note:", modal.item);
       createNote({
-        ...activeItem,
+        ...modal.item,
         name: values.name,
       });
-    } else if (modalType === "rename") {
+    } else if (modal.type === "rename") {
       renameNote({
-        id: activeItem.id,
+        id: modal.item.id,
         name: values.name,
       });
     }
-    setModalOpen(false);
-    setActiveItem({});
+    setModal({
+      open: false,
+      type: "create",
+      item: {},
+    });
     modalForm.resetFields();
   };
 
@@ -172,43 +198,9 @@ export default function NoteList({ onSelectNote = () => {} }) {
     setAutoExpandParent(false);
   };
 
-  const handleSearch = (e) => {
-    const { value } = e.target;
-    setSearchValue(value);
-
-    if (value) {
-      // Find all matching nodes and their parents
-      const expandedKeys = findMatchingNodes(treeData, value);
-      setExpandedKeys(expandedKeys);
-      setAutoExpandParent(true);
-    }
-  };
-
-  const getHighlightedTitle = (name) => {
-    if (!searchValue) return name;
-
-    const index = name.toLowerCase().indexOf(searchValue.toLowerCase());
-    if (index === -1) return name;
-
-    const beforeStr = name.substring(0, index);
-    const highlightedStr = name.substring(index, index + searchValue.length);
-    const afterStr = name.substring(index + searchValue.length);
-
-    return (
-      <span>
-        {beforeStr}
-        <span className="bg-yellow-200">{highlightedStr}</span>
-        {afterStr}
-      </span>
-    );
-  };
-
   const processTreeData = (treeData) => {
     return treeData.map((item) => {
       const newItem = { ...item };
-      if (searchValue) {
-        newItem.title = getHighlightedTitle(item.title);
-      }
       if (item.children) {
         newItem.children = processTreeData(item.children);
       }
@@ -219,9 +211,11 @@ export default function NoteList({ onSelectNote = () => {} }) {
   const handleRightClick = ({ event, node }) => {
     event.preventDefault();
     event.stopPropagation();
-    setRightClickedNode(node);
-    setContextMenuPosition({ x: event.clientX, y: event.clientY });
-    setIsTreeAreaContextMenu(false);
+    setContextMenu({
+      node,
+      position: { x: event.clientX, y: event.clientY },
+      isTreeArea: false,
+    });
   };
 
   const handleTreeAreaRightClick = (event) => {
@@ -232,15 +226,17 @@ export default function NoteList({ onSelectNote = () => {} }) {
     ) {
       event.preventDefault();
       event.stopPropagation();
-      setRightClickedNode(null);
-      setContextMenuPosition({ x: event.clientX, y: event.clientY });
-      setIsTreeAreaContextMenu(true);
+      setContextMenu({
+        node: null,
+        position: { x: event.clientX, y: event.clientY },
+        isTreeArea: true,
+      });
     }
   };
 
   const handleMenuClick = ({ key }) => {
     // Handle root-level actions
-    if (isTreeAreaContextMenu) {
+    if (contextMenu.isTreeArea) {
       switch (key) {
         case "newRootNote":
           handleModalOpen("create", {
@@ -263,58 +259,71 @@ export default function NoteList({ onSelectNote = () => {} }) {
         default:
           break;
       }
-      setIsTreeAreaContextMenu(false);
+      setContextMenu({
+        node: null,
+        position: { x: 0, y: 0 },
+        isTreeArea: false,
+      });
       return;
     }
 
     // Handle node-specific actions
-    if (!rightClickedNode) return;
+    if (!contextMenu.node) return;
 
     switch (key) {
       case "rename":
         handleModalOpen("rename", {
-          id: rightClickedNode.key,
-          name: rightClickedNode.title,
+          id: contextMenu.node.key,
+          name: contextMenu.node.title,
         });
         break;
       case "delete":
-        deleteNote(rightClickedNode.key);
+        deleteNote(contextMenu.node.key);
         break;
       case "restore":
-        restoreNote(rightClickedNode.key);
+        restoreNote(contextMenu.node.key);
         break;
       case "newNote":
         handleModalOpen("create", {
           isFolder: false,
-          parentId: rightClickedNode.key,
+          parentId: contextMenu.node.key,
           name: "",
         });
         break;
       case "newFolder":
         handleModalOpen("create", {
           isFolder: true,
-          parentId: rightClickedNode.key,
+          parentId: contextMenu.node.key,
           name: "",
         });
         break;
       case "duplicate":
+        console.log(contextMenu.node);
         handleModalOpen("create", {
-          isFolder: rightClickedNode.isFolder,
-          parentId: rightClickedNode.parentId,
-          name: `${rightClickedNode.title} (Copy)`,
+          id: contextMenu.node.key,
+          isFolder: contextMenu.node.isFolder,
+          parentId: contextMenu.node.parentId,
+          name: `${contextMenu.node.title} (Copy)`,
         });
         break;
       default:
         break;
     }
     // Close the menu after action
-    setRightClickedNode(null);
+    setContextMenu({
+      node: null,
+      position: { x: 0, y: 0 },
+      isTreeArea: false,
+    });
   };
 
   // Close context menu when clicking outside
   const handleClickOutside = useCallback(() => {
-    setRightClickedNode(null);
-    setIsTreeAreaContextMenu(false);
+    setContextMenu({
+      node: null,
+      position: { x: 0, y: 0 },
+      isTreeArea: false,
+    });
   }, []);
 
   useEffect(() => {
@@ -362,7 +371,49 @@ export default function NoteList({ onSelectNote = () => {} }) {
     }
   };
 
-  const nodeContextMenu = rightClickedNode?.isTrashItem
+  // Open search modal
+  const openSearchModal = () => {
+    setIsSearchModalOpen(true);
+  };
+
+  // Define shortcut handlers
+  const shortcutHandlers = {
+    NEW_NOTE: () => {
+      handleModalOpen("create", {
+        isFolder: false,
+        parentId: null,
+        name: "",
+      });
+      message.info("Creating new note");
+    },
+    NEW_FOLDER: () => {
+      handleModalOpen("create", {
+        isFolder: true,
+        parentId: null,
+        name: "",
+      });
+      message.info("Creating new folder");
+    },
+    REFRESH: () => {
+      fetchRootNotes();
+      setLoadedKeys([]);
+      message.info("Refreshing notes");
+    },
+    SEARCH: () => {
+      setIsSearchModalOpen(true);
+      message.info("Searching notes");
+    }
+  };
+
+  // Use keyboard shortcuts hook
+  useKeyboardShortcuts(
+    NOTE_LIST_SHORTCUTS,
+    shortcutHandlers,
+    {},
+    [fetchRootNotes]
+  );
+
+  const nodeContextMenu = contextMenu.node?.isTrashItem
     ? [
         {
           key: "restore",
@@ -389,7 +440,7 @@ export default function NoteList({ onSelectNote = () => {} }) {
           danger: true,
         },
         { type: "divider" },
-        ...(rightClickedNode?.isFolder
+        ...(contextMenu.node?.isFolder
           ? [
               {
                 key: "newNote",
@@ -512,7 +563,7 @@ export default function NoteList({ onSelectNote = () => {} }) {
     note?.deletedAt,
     JSON.stringify(combinedTreeData.map((item) => item.key)),
     JSON.stringify(trashItems.map((item) => item.key)),
-    parentFoldersLoaded, 
+    parentFoldersLoaded,
   ]);
 
   return (
@@ -522,7 +573,15 @@ export default function NoteList({ onSelectNote = () => {} }) {
           <h2 className="font-semibold text-lg">Note List</h2>
 
           <div className="flex items-center">
-            <Tooltip name="New Note">
+            <Tooltip title={`Search Notes (${formatShortcut(NOTE_LIST_SHORTCUTS.SEARCH)})`}>
+              <Button
+                size="small"
+                type="text"
+                onClick={openSearchModal}
+                icon={<SearchOutlined />}
+              />
+            </Tooltip>
+            <Tooltip title={`New Note (${formatShortcut(NOTE_LIST_SHORTCUTS.NEW_NOTE)})`}>
               <Button
                 size="small"
                 type="text"
@@ -536,7 +595,7 @@ export default function NoteList({ onSelectNote = () => {} }) {
                 icon={<FileTextOutlined />}
               />
             </Tooltip>
-            <Tooltip name="New Folder">
+            <Tooltip title={`New Folder (${formatShortcut(NOTE_LIST_SHORTCUTS.NEW_FOLDER)})`}>
               <Button
                 size="small"
                 type="text"
@@ -550,7 +609,7 @@ export default function NoteList({ onSelectNote = () => {} }) {
                 icon={<FolderOutlined />}
               />
             </Tooltip>
-            <Tooltip name="Refresh">
+            <Tooltip title={`Refresh (${formatShortcut(NOTE_LIST_SHORTCUTS.REFRESH)})`}>
               <Button
                 size="small"
                 type="text"
@@ -562,15 +621,6 @@ export default function NoteList({ onSelectNote = () => {} }) {
               />
             </Tooltip>
           </div>
-        </div>
-
-        <div className="p-3 mb-2 border-b border-gray-100">
-          <Input
-            placeholder="Search notes..."
-            prefix={<SearchOutlined />}
-            onChange={handleSearch}
-            className="rounded-md"
-          />
         </div>
 
         <div className="flex-grow overflow-auto h-full">
@@ -587,24 +637,27 @@ export default function NoteList({ onSelectNote = () => {} }) {
               {combinedTreeData.length ? (
                 <Dropdown
                   menu={{
-                    items: isTreeAreaContextMenu
+                    items: contextMenu.isTreeArea
                       ? treeAreaContextMenu
                       : nodeContextMenu,
                     onClick: handleMenuClick,
                   }}
                   trigger={["contextMenu"]}
-                  open={!!rightClickedNode || isTreeAreaContextMenu}
+                  open={!!contextMenu.node || contextMenu.isTreeArea}
                   onOpenChange={(visible) => {
                     if (!visible) {
-                      setRightClickedNode(null);
-                      setIsTreeAreaContextMenu(false);
+                      setContextMenu({
+                        node: null,
+                        position: { x: 0, y: 0 },
+                        isTreeArea: false,
+                      });
                     }
                   }}
                   getPopupContainer={(triggerNode) => triggerNode}
                   overlayStyle={{
                     position: "fixed",
-                    left: `${contextMenuPosition.x}px`,
-                    top: `${contextMenuPosition.y}px`,
+                    left: `${contextMenu.position.x}px`,
+                    top: `${contextMenu.position.y}px`,
                   }}
                 >
                   <div
@@ -661,16 +714,22 @@ export default function NoteList({ onSelectNote = () => {} }) {
       </div>
       <Modal
         title={
-          modalType === "create"
-            ? activeItem.isFolder
+          modal.type === "create"
+            ? modal.item.isFolder
               ? "Create Folder"
               : "Create Note"
-            : activeItem.isFolder
+            : modal.item.isFolder
             ? "Rename Folder"
             : "Rename Note"
         }
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
+        open={modal.open}
+        onCancel={() =>
+          setModal({
+            open: false,
+            type: "create",
+            item: {},
+          })
+        }
         footer={
           <Button
             type="primary"
@@ -678,7 +737,7 @@ export default function NoteList({ onSelectNote = () => {} }) {
               modalForm.submit();
             }}
           >
-            {modalType === "create" ? "Create" : "Rename"}
+            {modal.type === "create" ? "Create" : "Rename"}
           </Button>
         }
         destroyOnClose
@@ -689,7 +748,7 @@ export default function NoteList({ onSelectNote = () => {} }) {
           layout="vertical"
           onFinish={handleFormSubmit}
           initialValues={{
-            name: activeItem.name,
+            name: modal.item.name,
           }}
         >
           <Form.Item
@@ -697,10 +756,16 @@ export default function NoteList({ onSelectNote = () => {} }) {
             label="Name"
             rules={[{ required: true, message: "Please enter a name" }]}
           >
-            <Input placeholder="Enter name" autoFocus />
+            <Input ref={inputRef} placeholder="Enter name" />
           </Form.Item>
         </Form>
       </Modal>
+
+      <SearchModal
+        open={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        onSelectNote={onSelectNote}
+      />
     </>
   );
 }

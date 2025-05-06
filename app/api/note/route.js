@@ -8,23 +8,20 @@ import Note from "@/models/Note";
 export async function GET(request) {
   const session = await getServerSession(auth);
   if (!session) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     await connectDB();
-    
+
     // Get URL parameters
     const { searchParams } = new URL(request.url);
-    const root = searchParams.get('root') === 'true';
-    const trash = searchParams.get('trash') === 'true';
-    const parentId = searchParams.get('parentId');
-    
+    const root = searchParams.get("root") === "true";
+    const trash = searchParams.get("trash") === "true";
+    const parentId = searchParams.get("parentId");
+
     let query = { owner: session.user.id };
-    
+
     // Handle different query types
     if (root) {
       // Root level notes (no parent)
@@ -41,8 +38,10 @@ export async function GET(request) {
       // Default - all non-deleted notes
       query.deletedAt = null;
     }
-    
-    const notes = await Note.find(query, { content: 0, tags: 0 }).sort({ updatedAt: -1 });
+
+    const notes = await Note.find(query, { content: 0, tags: 0 }).sort({
+      updatedAt: -1,
+    });
     return NextResponse.json(notes);
   } catch (error) {
     console.error("Error fetching notes:", error);
@@ -57,15 +56,31 @@ export async function GET(request) {
 export async function POST(request) {
   const session = await getServerSession(auth);
   if (!session) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { name, parentId, isFolder } = await request.json();
+  const { id, name, parentId, isFolder } = await request.json();
 
   try {
     await connectDB();
+
+    // if have id, it means we are duplicating a note
+    if (id) {
+      const note = await Note.findById(id);
+      if (!note) {
+        return NextResponse.json({ error: "Note not found" }, { status: 404 });
+      }
+      const newNote = new Note({
+        name,
+        parentId,
+        isFolder,
+        owner: session.user.id,
+        content: note.content,
+        tags: note.tags,
+      });
+      await newNote.save();
+      return NextResponse.json(newNote);
+    }
+
     const note = new Note({
       name,
       parentId,

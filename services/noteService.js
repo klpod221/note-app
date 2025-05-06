@@ -176,13 +176,33 @@ export async function fetchReadmeNotes() {
     const response = await api.get("/readme");
     return {
       ...response.data,
-      success: true
+      success: true,
     };
   } catch (error) {
     console.error("Failed to fetch readme notes:", error);
     return {
       success: false,
-      error: error.message
+      error: error.message,
+    };
+  }
+}
+
+/**
+ * Search notes with text query and pagination support
+ * @param {string} query - The search query
+ * @param {number} page - Page number for pagination (default: 1)
+ * @param {number} limit - Number of items per page (default: 10)
+ * @returns {Promise} Promise with search results
+ */
+export async function searchNotes(query, page = 1, limit = 5) {
+  try {
+    const response = await api.get(`/note/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error searching notes:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to search notes',
     };
   }
 }

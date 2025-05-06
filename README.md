@@ -21,9 +21,11 @@ The goal of this project is to provide a simple and easy-to-use note-taking appl
 - [x] Organize notes with categories
 - [x] Rich text formatting
 - [x] Custom markdown editor using [monaco](https://microsoft.github.io/monaco-editor/)
-- [ ] Search functionality
-- [ ] Responsive design
-- [ ] Tags and labels for notes
+- [x] Auto save notes
+- [x] Search functionality
+- [x] Responsive design
+- [x] Keyboard shortcuts for common actions
+- [ ] Tags for notes
 - [ ] File attachments
 - [ ] Offline support
 - [ ] Note history and versioning

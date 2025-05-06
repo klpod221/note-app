@@ -43,10 +43,10 @@ export default function Sidebar ({ isMobile, open, toggleDrawer }) {
     if (resizingRef.current) {
       const newWidth = startWidthRef.current + (e.clientX - startXRef.current);
       // Set min and max width constraints
-      if (newWidth >= 180 && newWidth <= 500) {
+      if (newWidth >= 200 && newWidth <= 500) {
         setSiderWidth(newWidth);
-      } else if (newWidth < 180) {
-        setSiderWidth(180);
+      } else if (newWidth < 200) {
+        setSiderWidth(200);
       } else if (newWidth > 500) {
         setSiderWidth(500);
       }

@@ -2,6 +2,8 @@
 
 import { useRef, forwardRef, useImperativeHandle } from "react";
 import MonacoEditor from "@monaco-editor/react";
+import { EDITOR_SHORTCUTS } from "../constants/shortcuts";
+import useKeyboardShortcuts from "@/hooks/useKeyboardShortcuts";
 
 export default forwardRef(function MarkdownEditor({ value, onChange, onScroll, readOnly = false }, ref) {
   // Refs
@@ -113,6 +115,31 @@ export default forwardRef(function MarkdownEditor({ value, onChange, onScroll, r
       onChange(formatted);
     }
   };
+
+  // Define shortcut handlers
+  const shortcutHandlers = {
+    BOLD: () => insertMarkdownSyntax("**", "**", "bold text"),
+    ITALIC: () => insertMarkdownSyntax("*", "*", "italic text"),
+    LINK: () => insertMarkdownSyntax("[", "](url)", "link text"),
+    TASK_ITEM: () => insertMarkdownSyntax("- [ ] ", "", "Task item"),
+    INLINE_CODE: () => insertMarkdownSyntax("`", "`", "code"),
+    CODE_BLOCK: () => insertMarkdownSyntax("```\n", "\n```", "code block"),
+    HEADING_1: () => insertMarkdownSyntax("# ", "", "Heading 1"),
+    HEADING_2: () => insertMarkdownSyntax("## ", "", "Heading 2"),
+    HEADING_3: () => insertMarkdownSyntax("### ", "", "Heading 3"),
+    LIST_ITEM: () => insertMarkdownSyntax("- ", "", "List item"),
+    NUMBERED_LIST: () => insertMarkdownSyntax("1. ", "", "Numbered list item"),
+    FORMAT: () => formatMarkdown(),
+    FULLSCREEN_EXIT: () => {/* Exit fullscreen logic if needed */}
+  };
+
+  // Use our keyboard shortcuts hook
+  useKeyboardShortcuts(
+    EDITOR_SHORTCUTS,  
+    shortcutHandlers,
+    { monacoRef, editorRef },
+    [readOnly]
+  );
 
   // Configure Monaco's suggestion provider
   const configureSuggestionProvider = (monaco) => {
@@ -458,37 +485,6 @@ export default forwardRef(function MarkdownEditor({ value, onChange, onScroll, r
       }
     });
 
-    // Add keyboard shortcuts
-    editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyB, () => {
-      insertMarkdownSyntax("**", "**", "bold text");
-    });
-
-    editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyI, () => {
-      insertMarkdownSyntax("*", "*", "italic text");
-    });
-
-    editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyK, () => {
-      insertMarkdownSyntax("[", "](url)", "link text");
-    });
-
-    editor.addCommand(
-      monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyX,
-      () => {
-        insertMarkdownSyntax("- [ ] ", "", "Task item");
-      }
-    );
-
-    editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.KeyE, () => {
-      insertMarkdownSyntax("`", "`", "code");
-    });
-
-    editor.addCommand(
-      monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyE,
-      () => {
-        insertMarkdownSyntax("```\n", "\n```", "code block");
-      }
-    );
-
     // Configure auto-continuation of lists
     editor.onKeyDown((e) => {
       if (readOnly) return; // Don't process keyboard events in readonly mode
@@ -604,49 +600,6 @@ export default forwardRef(function MarkdownEditor({ value, onChange, onScroll, r
         }
       }
     });
-
-    // Add heading keyboard shortcuts
-    editor.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.Digit1,
-      () => {
-        insertMarkdownSyntax("# ", "", "Heading 1");
-      }
-    );
-
-    editor.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.Digit2,
-      () => {
-        insertMarkdownSyntax("## ", "", "Heading 2");
-      }
-    );
-
-    editor.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.Digit3,
-      () => {
-        insertMarkdownSyntax("### ", "", "Heading 3");
-      }
-    );
-
-    editor.addCommand(
-      monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyL,
-      () => {
-        insertMarkdownSyntax("- ", "", "List item");
-      }
-    );
-
-    editor.addCommand(
-      monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyN,
-      () => {
-        insertMarkdownSyntax("1. ", "", "Numbered list item");
-      }
-    );
-
-    editor.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF,
-      () => {
-        formatMarkdown();
-      }
-    );
   };
 
   return (
