@@ -206,3 +206,28 @@ export async function searchNotes(query, page = 1, limit = 5) {
     };
   }
 }
+
+/**
+ * Fetch note statistics including counts and recent notes
+ * @returns {Promise} Promise with the statistics data
+ */
+export async function fetchNoteStatistics() {
+  try {
+    const response = await api.get('/note/stats');
+    return {
+      stats: response.data.stats,
+      recentNotes: response.data.recentNotes,
+      activityData: response.data.activityData,
+      success: true
+    };
+  } catch (error) {
+    console.error('Error fetching note statistics:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to fetch note statistics',
+      stats: null,
+      recentNotes: [],
+      activityData: []
+    };
+  }
+}
