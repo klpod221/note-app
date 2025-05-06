@@ -20,10 +20,16 @@ The goal of this project is to provide a simple and easy-to-use note-taking appl
 - [x] Create, edit, and delete notes
 - [x] Organize notes with categories
 - [x] Rich text formatting
+- [x] Custom markdown editor using [monaco](https://microsoft.github.io/monaco-editor/)
 - [ ] Search functionality
-- [ ] Note sharing and collaboration
+- [ ] Responsive design
+- [ ] Tags and labels for notes
 - [ ] File attachments
-- [ ] Dark/Light mode
+- [ ] Offline support
+- [ ] Note history and versioning
+- [ ] Reminders and notifications
+- [ ] Sync notes across devices (real-time)
+- [ ] Note sharing and collaboration (real-time)
 - [ ] API access for integration with other tools
 
 ## Tech Stack
